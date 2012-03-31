@@ -58,12 +58,14 @@
             <dl>
                 <dt>Track</dt>
                 <dd><%= track %>/<%= tracktotal %></dd>
-                <% if (disc) { %>
+                <% if (disc && disctotal>1) { %>
                     <dt>Disc</dt>
                     <dd><%= disc %>/<%= disctotal %></dd>
                 <% } %>
                 <dt>Length</dt>
                 <dd><%= timeFormat(length) %></dd>
+                <dt>Genre</dt>
+                <dd><%= genre %></dd>
                 <% if (mb_trackid) { %>
                     <dt>MusicBrainz entry</dt>
                     <dd>
