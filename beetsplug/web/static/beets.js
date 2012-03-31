@@ -251,7 +251,7 @@ var AppView = Backbone.View.extend({
         $('#detail').empty().append(detailView.render().el);
     },
     playItem: function(item) {
-        var url = '/item/' + item.get('id') + '/file';
+        var url = '/item/' + item.get('id') + '/stream';
         $('#player audio').attr('src', url);
         $('#player audio').get(0).play();
 
