@@ -64,10 +64,6 @@
                 <% } %>
                 <dt>Length</dt>
                 <dd><%= timeFormat(length) %></dd>
-                <dt>Format</dt>
-                <dd><%= format %></dd>
-                <dt>Bitrate</dt>
-                <dd><%= Math.round(bitrate/1000) %> kbps</dd>
                 <% if (mb_trackid) { %>
                     <dt>MusicBrainz entry</dt>
                     <dd>
@@ -76,7 +72,11 @@
                 <% } %>
                 <dt>File</dt>
                 <dd>
-                    <a target="_blank" class="download" href="/item/<%= id %>/file">download</a>
+                    <a target="_blank" class="download" href="/item/<%= id %>/file">
+                        <%= format.toLowerCase() %> <%= Math.round(bitrate/1000) %>kbps</a>
+                    <a target="_blank" class="download" href="/item/<%= id %>/ogg_q2">ogg q2</a>
+                    <a target="_blank" class="download" href="/item/<%= id %>/ogg_q5">ogg q5</a>
+                    <a target="_blank" class="download" href="/item/<%= id %>/ogg_q7">ogg q7</a>
                 </dd>
                 <% if (lyrics) { %>
                     <dt>Lyrics</dt>
