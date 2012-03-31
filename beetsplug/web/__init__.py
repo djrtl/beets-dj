@@ -20,9 +20,11 @@ import beets.library
 import flask
 from flask import g, Response
 from werkzeug.datastructures import Headers
+import re
 
 DEFAULT_HOST = ''
 DEFAULT_PORT = 8337
+DEFAULT_STREAMING_FORMAT = 'original'
 
 
 # Utilities.
@@ -94,6 +96,10 @@ def item_ogg(item_id, ogg_q):
     headers.add('Content-Disposition', 'attachment', filename=filename)
     return Response(ogg_fp.stdout, headers=headers)
 
+@app.route('/item/<int:item_id>/stream')
+def item_stream(item_id):
+  return app.config['stream_func'](item_id)
+
 @app.route('/item/query/<path:query>')
 def item_query(query):
     parts = query.split('/')
@@ -146,6 +152,15 @@ class WebPlugin(BeetsPlugin):
             port = args.pop(0) if args else \
                 beets.ui.config_val(config, 'web', 'port', str(DEFAULT_PORT))
             port = int(port)
+
+            stream_format = beets.ui.config_val(config, 'web',
+                'stream_format', DEFAULT_STREAMING_FORMAT)
+            captures = re.match(r'ogg_q([0-9])', stream_format)
+            if captures:
+                quality = captures.group(1)
+                app.config['stream_func'] = lambda x: item_ogg(x, quality)
+            else:
+                app.config['stream_func'] = item_file
 
             app.config['lib'] = lib
             app.run(host=host, port=port, debug=opts.debug, threaded=True)
