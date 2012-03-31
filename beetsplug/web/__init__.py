@@ -181,6 +181,10 @@ def item_ogg(item_id, ogg_q):
     headers.add('Content-Disposition', 'attachment', filename=filename)
     return Response(ogg_fp.stdout, headers=headers)
 
+@app.route('/item/<int:item_id>/stream')
+def item_stream(item_id):
+  return app.config['stream_func'](item_id)
+
 @app.route('/item/query/<path:query>')
 def item_query(query):
     parts = query.split('/')
