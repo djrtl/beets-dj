@@ -282,6 +282,20 @@ class Item(object):
         # Either copying or moving succeeded, so update the stored path.
         self.path = dest
 
+    def export(self, export_format, dest):
+        """Exports the item's file to the specified filename with
+        the specified format, ie either the 'original' one or an ogg
+        of a certain quality when specifying 'ogg_qX' with X between
+        0 and 9. If a file exists at ``dest``, then it is slightly
+        modified to be unique.
+        """
+        if not util.samefile(self.path, dest):
+            dest = util.unique_path(dest)
+        if util.valid_conversion_format(export_format):
+            util.convert_audio(self.path, dest, export_format)
+        else:
+            util.copy(self.path, dest)
+
     def current_mtime(self):
         """Returns the current mtime of the file, rounded to the nearest
         integer.
@@ -1071,6 +1085,33 @@ class Library(BaseLibrary):
         if not copy:
             util.prune_dirs(os.path.dirname(old_path), self.directory)
 
+    def export(self, item, export_format, basedir, with_album):
+        """Exports an item to the specified base directory with the
+        specified format. Subdirectories are created as needed.
+
+        If the item is in an album, the album is given an opportunity to
+        export its art. (This can be disabled by passing with_album=False.)
+        """
+        dest = self.destination(item, in_album=False, basedir=basedir)
+
+        # Replace the extension in the destination file to the one
+        # common for the specified format.
+        if util.valid_conversion_format(export_format):
+            dest, _ = os.path.splitext(dest)
+            dest += util.default_extension_for_format(export_format)
+
+        # Create necessary ancestry for the export.
+        util.mkdirall(dest)
+ 
+        # Export the actual item.
+        item.export(export_format, dest)
+
+        # If this item is in an album, export its art.
+        if with_album:
+            album = self.get_album(item)
+            if album:
+                album.export_art(basedir)
+
 
     # Querying.
 
@@ -1302,6 +1343,33 @@ class Album(BaseAlbum):
 
         # Move art.
         self.move_art(copy)
+
+    def export_art(self, basedir):
+        """Exports any existing album art so that it also ends up in the
+        same directory as the items.
+        """
+        if not self.artpath:
+            return
+
+        new_art = self.art_destination(self.artpath, basedir)
+        if new_art == self.artpath:
+            return
+
+        log.debug('copying album art %s to %s' % (self.artpath, new_art))
+        util.copy(self.artpath, new_art)
+
+    def export(self, export_format, basedir):
+        """Export all items to the specified destination.  Any album
+        art gets copied along. export_format can be 'original' or 'ogg_qX'
+        with X=0-9 to specify the quality of a transcode to ogg.
+        """
+        # Export items.
+        items = list(self.items())
+        for item in items:
+            self._library.export(item, export_format, basedir, with_album=False)
+
+        # Export art.
+        self.export_art(basedir)
 
     def item_dir(self):
         """Returns the directory containing the album's first item,
