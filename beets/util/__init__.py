@@ -256,6 +256,59 @@ def move(path, dest, replace=False, pathmod=None):
     _assert_not_exists(dest, pathmod)
     return shutil.move(path, dest)
 
+def valid_conversion_format(conversion_format):
+    """Returns True if the specified conversion format is recognized.
+    """
+    return re.match(r'ogg_q[0-9]', conversion_format)!=None
+
+def default_extension_for_format(conversion_format):
+    """Returns the extension most common for the specified format or
+    None if the format is not recognized.
+    """
+    if re.match(r'ogg_q[0-9]', conversion_format):
+        return '.ogg'
+
+def convert_audio(path, dest, conversion_format):
+    """Converts an audio file. Hos no effect if path is the same as dest.
+    Paths are translated to system paths.
+    The conversion format has to be 'ogg_qX' with X=0-9. Any other string
+    is considered to be equivalent to 'original', ie the original file
+    gets copied as is to the destination.
+    """
+    if samefile(path, dest):
+        return
+
+    captures = re.match(r'ogg_q([0-9])', conversion_format)
+    if not captures:
+        return copy(path, dest)
+
+    ogg_q = captures.group(1)
+
+    path = syspath(path)
+    dest = syspath(dest)
+    _assert_not_exists(dest, None)
+
+    out_file = open(dest, "wb")
+
+    from subprocess import Popen, PIPE
+    import mimetypes;
+    if mimetypes.guess_type(path)[0] == 'audio/mpeg':
+        decoded_fp = Popen(
+            ["mpg123", "-q", "-w", "/dev/stdout", path],
+            stdout=PIPE)
+        ogg_fp = Popen(
+            ["oggenc", "-q", str(ogg_q), "-Q", "--ignorelength", "-"],
+            stdin=decoded_fp.stdout,
+            stdout=out_file);
+        decoded_fp.stdout.close()
+    else:
+        ogg_fp = Popen(
+            ["oggenc", "-q", str(ogg_q), "-Q", "-o", "/dev/stdout", path],
+            stdout=out_file);
+
+    ogg_fp.communicate()
+    out_file.close()
+
 def unique_path(path):
     """Returns a version of ``path`` that does not exist on the
     filesystem. Specifically, if ``path` itself already exists, then
