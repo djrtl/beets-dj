@@ -1180,3 +1180,47 @@ def move_func(lib, config, opts, args):
     move_items(lib, dest, decargs(args), opts.copy, opts.album)
 move_cmd.func = move_func
 default_commands.append(move_cmd)
+
+
+# export: Export files from the library to an external directory.
+
+def export_items(lib, dest, query, export_format, album):
+    """Export files from the library to an external directory, given by dest.
+    export_format can be 'original' to use the original format unchanged or
+    ogg_qX with X a number between 0 and 9 to transcode files to an ogg file
+    with the specified quality.
+    """
+    items, albums = _do_query(lib, query, album, False)
+    objs = albums if album else items
+
+    entity = 'album' if album else 'item'
+    logging.info('Exporting %i %ss.' % (len(objs), entity))
+    for obj in objs:
+        lib_path = obj.item_dir() if album else obj.path
+        logging.debug('exporting: %s' % lib_path)
+
+        if album:
+            obj.export(export_format, dest)
+        else:
+            lib.export(obj, export_format, dest, with_album=False)
+
+export_cmd = ui.Subcommand('export',
+    help='export items', aliases=('exp',))
+export_cmd.parser.add_option('-d', '--dest', metavar='DIR', dest='dest',
+    help='destination directory')
+export_cmd.parser.add_option('-f', '--format', metavar='FORMAT', dest='format',
+    default='original', help='format, \'original\' or \'ogg_qX\' with X=0-9')
+export_cmd.parser.add_option('-a', '--album', default=False, action='store_true',
+    help='match whole albums instead of tracks')
+def export_func(lib, config, opts, args):
+    dest = opts.dest
+    if dest is None:
+      raise ui.UserError('the destination directory must be specified')
+    if dest is not None:
+        dest = normpath(dest)
+        if not os.path.isdir(dest):
+            raise ui.UserError('no such directory: %s' % dest)
+
+    export_items(lib, dest, decargs(args), opts.format, opts.album)
+export_cmd.func = export_func
+default_commands.append(export_cmd)
