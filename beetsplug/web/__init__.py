@@ -20,6 +20,7 @@ import beets.library
 import flask
 from flask import g, Response, request
 from werkzeug.datastructures import Headers
+import os
 import re
 # this was moved in 0.7
 try:
