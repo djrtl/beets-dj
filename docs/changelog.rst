@@ -14,18 +14,41 @@ Changelog
   fields, ``artist_sort`` and ``albumartist_sort``, that contain sortable artist
   names like "Beatles, The". These fields are also used to sort albums and items
   when using the ``list`` command. Thanks to Paul Provost.
+* Many other **new metadata fields** were added, including ASIN, label catalog
+  number, disc title, encoder, and MusicBrainz release group ID. For a full list
+  of fields, see :ref:`itemfields`.
+* :doc:`/plugins/chroma`: A new command, ``beet submit``, will **submit
+  fingerprints** to the Acoustid database. Submitting your library helps
+  increase the coverage and accuracy of Acoustid fingerprinting. The Chromaprint
+  fingerprint and Acoustid ID are also now stored for all fingerprinted tracks.
+  This version of beets *requires* at least version 0.6 of `pyacoustid`_ for
+  fingerprinting to work.
+* The importer can now **move files**. Previously, beets could only copy files
+  and delete the originals, which is inefficient if the source and destination
+  are on the same filesystem. Use the ``import_move`` configuration option and
+  see :doc:`/reference/config` for more details. Thanks to Domen Kožar.
 * New :doc:`/plugins/rdm`: Randomly select albums and tracks from your library.
   Thanks to Philippe Mongeau.
 * The :doc:`/plugins/mbcollection` by Jeffrey Aylesworth was added to the core
   beets distribution.
-* New :doc:`/plugins/m3uupdate`: Catalog imported files in an ``m3u`` playlist
-  file for easy importing to other systems. Thanks to Fabrice Laporte.
+* New :doc:`/plugins/importfeeds`: Catalog imported files in ``m3u`` playlist
+  files or as symlinks for easy importing to other systems. Thanks to Fabrice
+  Laporte.
 * When the autotagger fails to find a match, it now displays the number of
-  tracks on the album (to help you guess what might be going wrong).
+  tracks on the album (to help you guess what might be going wrong) and a link
+  to the FAQ.
+* Readline is now used when available to provide nicer terminal input.
+* The default filename character substitutions were changed to be more
+  conservative. The Windows "reserved characters" are substituted by default
+  even on Unix platforms (this causes less surprise when using Samba shares to
+  store music). To customize your character substitutions, see :ref:`the replace
+  config option <replace>`.
 * :doc:`/plugins/bpd`: Use Gstreamer's ``playbin2`` element instead of the
   deprecated ``playbin``.
 * Filenames are normalized with Unicode Normal Form D (NFD) on Mac OS X and NFC
   on all other platforms.
+
+.. _pyacoustid: https://github.com/sampsyo/pyacoustid
 
 
 1.0b13 (March 16, 2012)

@@ -470,7 +470,7 @@ class AutotagTest(unittest.TestCase):
 class ImportTest(unittest.TestCase):
     def test_quiet_timid_disallowed(self):
         self.assertRaises(ui.UserError, commands.import_files,
-                          None, [], False, False, False, None, False, False,
+                          None, [], False, False, False, False, None, False, False,
                           False, False, True, False, None, False, True, None,
                           False, [])
 
@@ -532,7 +532,7 @@ class ConfigTest(unittest.TestCase):
     def test_replacements_parsed(self):
         def func(lib, config, opts, args):
             replacements = lib.replacements
-            self.assertEqual(replacements, [(re.compile(r'[xy]'), 'z')])
+            self.assertEqual(replacements, [(re.compile(ur'[xy]'), u'z')])
         self._run_main([], textwrap.dedent("""
             [beets]
             replace=[xy] z"""), func)
@@ -549,8 +549,8 @@ class ConfigTest(unittest.TestCase):
         def func(lib, config, opts, args):
             replacements = lib.replacements
             self.assertEqual(replacements, [
-                (re.compile(r'[xy]'), 'z'),
-                (re.compile(r'foo'), 'bar'),
+                (re.compile(ur'[xy]'), u'z'),
+                (re.compile(ur'foo'), u'bar'),
             ])
         self._run_main([], textwrap.dedent("""
             [beets]

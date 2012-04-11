@@ -41,32 +41,45 @@ ITEM_FIELDS = [
     ('path',        'blob', False, False),
     ('album_id',    'int',  False, False),
 
-    ('title',            'text', True, True),
-    ('artist',           'text', True, True),
-    ('artist_sort',      'text', True, True),
-    ('album',            'text', True, True),
-    ('albumartist',      'text', True, True),
-    ('albumartist_sort', 'text', True, True),
-    ('genre',            'text', True, True),
-    ('composer',         'text', True, True),
-    ('grouping',         'text', True, True),
-    ('year',             'int',  True, True),
-    ('month',            'int',  True, True),
-    ('day',              'int',  True, True),
-    ('track',            'int',  True, True),
-    ('tracktotal',       'int',  True, True),
-    ('disc',             'int',  True, True),
-    ('disctotal',        'int',  True, True),
-    ('lyrics',           'text', True, True),
-    ('comments',         'text', True, True),
-    ('bpm',              'int',  True, True),
-    ('comp',             'bool', True, True),
-    ('mb_trackid',       'text', True, True),
-    ('mb_albumid',       'text', True, True),
-    ('mb_artistid',      'text', True, True),
-    ('mb_albumartistid', 'text', True, True),
-    ('albumtype',        'text', True, True),
-    ('label',            'text', True, True),
+    ('title',                'text', True, True),
+    ('artist',               'text', True, True),
+    ('artist_sort',          'text', True, True),
+    ('album',                'text', True, True),
+    ('albumartist',          'text', True, True),
+    ('albumartist_sort',     'text', True, True),
+    ('genre',                'text', True, True),
+    ('composer',             'text', True, True),
+    ('grouping',             'text', True, True),
+    ('year',                 'int',  True, True),
+    ('month',                'int',  True, True),
+    ('day',                  'int',  True, True),
+    ('track',                'int',  True, True),
+    ('tracktotal',           'int',  True, True),
+    ('disc',                 'int',  True, True),
+    ('disctotal',            'int',  True, True),
+    ('lyrics',               'text', True, True),
+    ('comments',             'text', True, True),
+    ('bpm',                  'int',  True, True),
+    ('comp',                 'bool', True, True),
+    ('mb_trackid',           'text', True, True),
+    ('mb_albumid',           'text', True, True),
+    ('mb_artistid',          'text', True, True),
+    ('mb_albumartistid',     'text', True, True),
+    ('albumtype',            'text', True, True),
+    ('label',                'text', True, True),
+    ('acoustid_fingerprint', 'text', True, True),
+    ('acoustid_id',          'text', True, True),
+    ('mb_releasegroupid',    'text', True, True),
+    ('asin',                 'text', True, True),
+    ('catalognum',           'text', True, True),
+    ('script',               'text', True, True),
+    ('language',             'text', True, True),
+    ('country',              'text', True, True),
+    ('albumstatus',          'text', True, True),
+    ('media',                'text', True, True),
+    ('albumdisambig',        'text', True, True),
+    ('disctitle',            'text', True, True),
+    ('encoder',              'text', True, True),
 
     ('length',      'real', False, True),
     ('bitrate',     'int',  False, True),
@@ -87,20 +100,28 @@ ALBUM_FIELDS = [
     ('id',      'integer primary key', False),
     ('artpath', 'blob',                False),
 
-    ('albumartist',      'text', True),
-    ('albumartist_sort', 'text', True),
-    ('album',            'text', True),
-    ('genre',            'text', True),
-    ('year',             'int',  True),
-    ('month',            'int',  True),
-    ('day',              'int',  True),
-    ('tracktotal',       'int',  True),
-    ('disctotal',        'int',  True),
-    ('comp',             'bool', True),
-    ('mb_albumid',       'text', True),
-    ('mb_albumartistid', 'text', True),
-    ('albumtype',        'text', True),
-    ('label',            'text', True),
+    ('albumartist',       'text', True),
+    ('albumartist_sort',  'text', True),
+    ('album',             'text', True),
+    ('genre',             'text', True),
+    ('year',              'int',  True),
+    ('month',             'int',  True),
+    ('day',               'int',  True),
+    ('tracktotal',        'int',  True),
+    ('disctotal',         'int',  True),
+    ('comp',              'bool', True),
+    ('mb_albumid',        'text', True),
+    ('mb_albumartistid',  'text', True),
+    ('albumtype',         'text', True),
+    ('label',             'text', True),
+    ('mb_releasegroupid', 'text', True),
+    ('asin',              'text', True),
+    ('script',            'text', True),
+    ('language',          'text', True),
+    ('country',           'text', True),
+    ('albumstatus',       'text', True),
+    ('media',             'text', True),
+    ('albumdisambig',     'text', True),
 ]
 ALBUM_KEYS = [f[0] for f in ALBUM_FIELDS]
 ALBUM_KEYS_ITEM = [f[0] for f in ALBUM_FIELDS if f[2]]
@@ -892,17 +913,17 @@ class Library(BaseLibrary):
         funcs.update(plugins.template_funcs())
         subpath = subpath_tmpl.substitute(mapping, funcs)
 
-        # Encode for the filesystem, dropping unencodable characters.
+        # Prepare path for output: normalize Unicode characters.
         if platform == 'darwin':
             subpath = unicodedata.normalize('NFD', subpath)
         else:
             subpath = unicodedata.normalize('NFC', subpath)
+        # Truncate components and remove forbidden characters.
+        subpath = util.sanitize_path(subpath, pathmod, self.replacements)
+        # Encode for the filesystem, dropping unencodable characters.
         if isinstance(subpath, unicode) and not fragment:
             encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
             subpath = subpath.encode(encoding, 'replace')
-
-        # Truncate components and remove forbidden characters.
-        subpath = util.sanitize_path(subpath, pathmod, self.replacements)
 
         # Preserve extension.
         _, extension = pathmod.splitext(item.path)

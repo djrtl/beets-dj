@@ -87,6 +87,7 @@ def _showdiff(field, oldval, newval, color):
 # import: Autotagger and importer.
 
 DEFAULT_IMPORT_COPY           = True
+DEFAULT_IMPORT_MOVE           = False
 DEFAULT_IMPORT_WRITE          = True
 DEFAULT_IMPORT_DELETE         = False
 DEFAULT_IMPORT_AUTOT          = True
@@ -302,6 +303,8 @@ def choose_candidate(candidates, singleton, rec, color, timid,
         else:
             print_("No matching release found for {} tracks."
                    .format(itemcount))
+            print_('For help, see: '
+                   'https://github.com/sampsyo/beets/wiki/FAQ#wiki-nomatch')
             opts = ('Use as-is', 'as Tracks', 'Skip', 'Enter search',
                     'enter Id', 'aBort')
         sel = ui.input_options(opts, color=color)
@@ -598,7 +601,7 @@ def resolve_duplicate(task, config):
 
 # The import command.
 
-def import_files(lib, paths, copy, write, autot, logpath, art, threaded,
+def import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
                  color, delete, quiet, resume, quiet_fallback, singletons,
                  timid, query, incremental, ignore):
     """Import the files in the given list of paths, tagging each leaf
@@ -655,6 +658,7 @@ def import_files(lib, paths, copy, write, autot, logpath, art, threaded,
             quiet = quiet,
             quiet_fallback = quiet_fallback,
             copy = copy,
+            move = move,
             write = write,
             art = art,
             delete = delete,
@@ -721,6 +725,8 @@ def import_func(lib, config, opts, args):
     copy  = opts.copy  if opts.copy  is not None else \
         ui.config_val(config, 'beets', 'import_copy',
             DEFAULT_IMPORT_COPY, bool)
+    move  = ui.config_val(config, 'beets', 'import_move',
+                          DEFAULT_IMPORT_MOVE, bool)
     write = opts.write if opts.write is not None else \
         ui.config_val(config, 'beets', 'import_write',
             DEFAULT_IMPORT_WRITE, bool)
@@ -770,7 +776,7 @@ def import_func(lib, config, opts, args):
         query = None
         paths = args
 
-    import_files(lib, paths, copy, write, autot, logpath, art, threaded,
+    import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
                  color, delete, quiet, resume, quiet_fallback, singletons,
                  timid, query, incremental, ignore)
 import_cmd.func = import_func
