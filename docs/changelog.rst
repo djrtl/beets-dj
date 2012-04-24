@@ -34,10 +34,13 @@ Changelog
 * New :doc:`/plugins/importfeeds`: Catalog imported files in ``m3u`` playlist
   files or as symlinks for easy importing to other systems. Thanks to Fabrice
   Laporte.
+* A new command ``beet fields`` displays the available metadata fields (thanks
+  to Matteo Mecucci).
+* The ``import`` command now has a ``--noincremental`` or ``-I`` flag to disable
+  incremental imports (thanks to Matteo Mecucci).
 * When the autotagger fails to find a match, it now displays the number of
   tracks on the album (to help you guess what might be going wrong) and a link
   to the FAQ.
-* Readline is now used when available to provide nicer terminal input.
 * The default filename character substitutions were changed to be more
   conservative. The Windows "reserved characters" are substituted by default
   even on Unix platforms (this causes less surprise when using Samba shares to
@@ -45,6 +48,8 @@ Changelog
   config option <replace>`.
 * :doc:`/plugins/bpd`: Use Gstreamer's ``playbin2`` element instead of the
   deprecated ``playbin``.
+* :doc:`/plugins/bpd`: Listings are now sorted (thanks once again to Matteo
+  Mecucci).
 * Filenames are normalized with Unicode Normal Form D (NFD) on Mac OS X and NFC
   on all other platforms.
 

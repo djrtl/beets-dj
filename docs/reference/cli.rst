@@ -77,7 +77,7 @@ right now; this is something we need to work on. Read the
   option to run an *incremental* import. With this flag, beets will keep
   track of every directory it ever imports and avoid importing them again.
   This is useful if you have an "incoming" directory that you periodically
-  add things to.
+  add things to. (The ``-I`` flag disables incremental imports.)
 
 * By default, beets will proceed without asking if it finds a very close
   metadata match. To disable this and have the importer as you every time,
@@ -137,8 +137,9 @@ be useful for piping into other Unix commands (such as `xargs`_). Similarly, the
 ``-f`` option lets you specify a specific format with which to print every album
 or track. This uses the same template syntax as beets' :doc:`path formats
 <pathformat>`. For example, the command ``beet ls -af '$album: $tracktotal'
-beatles`` prints out the number of tracks on each Beatles album. Remember to
-enclose the template argument in single quotes to avoid shell expansion.
+beatles`` prints out the number of tracks on each Beatles album. In Unix shells,
+remember to enclose the template argument in single quotes to avoid environment
+variable expansion.
 
 .. _xargs: http://en.wikipedia.org/wiki/Xargs
 
@@ -213,6 +214,15 @@ stats
 
 Show some statistics on your entire library (if you don't provide a
 :doc:`query <query>` or the matched items (if you do).
+
+fields
+``````
+::
+
+    beet fields
+
+Show the item and album metadata fields available for use in :doc:`query` and
+:doc:`pathformat`.
 
 
 Global Flags
