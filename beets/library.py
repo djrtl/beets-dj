@@ -116,6 +116,7 @@ ALBUM_FIELDS = [
     ('label',             'text', True),
     ('mb_releasegroupid', 'text', True),
     ('asin',              'text', True),
+    ('catalognum',        'text', True),
     ('script',            'text', True),
     ('language',          'text', True),
     ('country',           'text', True),
@@ -134,6 +135,7 @@ ITEM_DEFAULT_FIELDS = ARTIST_DEFAULT_FIELDS + ALBUM_DEFAULT_FIELDS + \
 
 # Special path format key.
 PF_KEY_DEFAULT = 'default'
+
 
 # Logger.
 log = logging.getLogger('beets')
@@ -973,9 +975,11 @@ class Library(BaseLibrary):
         for key, value in plugins.template_values(item).iteritems():
             mapping[key] = util.sanitize_for_path(value, pathmod, key)
 
-        # Perform substitution.
+        # Get template functions.
         funcs = DefaultTemplateFunctions(self, item, pathmod).functions()
         funcs.update(plugins.template_funcs())
+
+        # Perform substitution.
         subpath = subpath_tmpl.substitute(mapping, funcs)
 
         # Prepare path for output: normalize Unicode characters.
@@ -1558,14 +1562,16 @@ class DefaultTemplateFunctions(object):
         """
         return unidecode(s)
 
-    def tmpl_unique(self, keys, disam):
+    def tmpl_aunique(self, keys=None, disam=None):
         """Generate a string that is guaranteed to be unique among all
-        albums in the library who share the same set of keys. Fields
-        from "disam" are used in the string if they are sufficient to
+        albums in the library who share the same set of keys. A fields
+        from "disam" is used in the string if one is sufficient to
         disambiguate the albums. Otherwise, a fallback opaque value is
         used. Both "keys" and "disam" should be given as
         whitespace-separated lists of field names.
         """
+        keys = keys or 'albumartist album'
+        disam = disam or 'albumtype year label catalognum albumdisambig'
         keys = keys.split()
         disam = disam.split()
 
@@ -1586,35 +1592,22 @@ class DefaultTemplateFunctions(object):
         if len(albums) == 1:
             return u''
 
-        # Find the minimum number of fields necessary to disambiguate
-        # the set of albums.
-        disambiguators = []
-        for field in disam:
-            disambiguators.append(field)
-            
-            # Get the value tuple for each album for these
-            # disambiguators.
-            disam_values = set()
-            for a in albums:
-                values = [getattr(a, f) for f in disambiguators]
-                disam_values.add(tuple(values))
+        # Find the first disambiguator that distinguishes the albums.
+        for disambiguator in disam:
+            # Get the value for each album for the current field.
+            disam_values = set([getattr(a, disambiguator) for a in albums])
 
-            # If the set of unique tuples is equal to the number of
+            # If the set of unique values is equal to the number of
             # albums in the disambiguation set, we're done -- this is
             # sufficient disambiguation.
             if len(disam_values) == len(albums):
                 break
 
         else:
-            # Even when using all of the disambiguating fields, we
-            # could not separate all the albums. Fall back to the unique
-            # album ID.
+            # No disambiguator distinguished all fields.
             return u' {}'.format(album.id)
 
-        # Flatten disambiguation values into a string.
-        values = [
-            util.sanitize_for_path(unicode(getattr(album, f)),
-                                   self.pathmod, f)
-            for f in disambiguators
-        ]
-        return u' [{}]'.format(u' '.join(values))
+        # Flatten disambiguation value into a string.
+        disam_value = util.sanitize_for_path(getattr(album, disambiguator),
+                                             self.pathmod, disambiguator)
+        return u' [{}]'.format(disam_value)
