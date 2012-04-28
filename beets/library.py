@@ -507,10 +507,10 @@ class CollectionQuery(Query):
     def _parse_query_part(cls, part):
         """Takes a query in the form of a key/value pair separated by a
         colon. An additional colon before the value indicates that the
-        value is a regular expression. Returns tuple (key, term,
-        is_regexp) where key is None if the search term has no key and
-        is_regexp indicates whether term is a regular expression or an
-        ordinary substring match.
+        value is a regular expression.
+        Returns tuple (key, term, is_regexp) where key is None if
+        the search term has no key and is_regexp indicates whether term
+        is a regular expression or not.
 
         For instance,
         parse_query('stapler') == (None, 'stapler', false)
