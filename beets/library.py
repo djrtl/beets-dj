@@ -870,10 +870,12 @@ class Library(BaseLibrary):
                 return False
 
         self.conn.create_function("REGEXP", 2, regexp)
-        
+
         self._make_table('items', item_fields)
         self._make_table('albums', album_fields)
-    
+
+        self._memotable = {}  # Used for template substitution performance.
+
     def _make_table(self, table, fields):
         """Set up the schema of the library file. fields is a list of
         all the fields that should be present in the indicated table.
@@ -917,11 +919,10 @@ class Library(BaseLibrary):
         self.conn.executescript(setup_sql)
         self.conn.commit()
 
-    def destination(self, item, pathmod=None, in_album=False,
-                    fragment=False, basedir=None, platform=None):
+    def destination(self, item, pathmod=None, fragment=False,
+                    basedir=None, platform=None):
         """Returns the path in the library directory designated for item
-        item (i.e., where the file ought to be). in_album forces the
-        item to be treated as part of an album. fragment makes this
+        item (i.e., where the file ought to be). fragment makes this
         method return just the path fragment underneath the root library
         directory; the path is also returned as Unicode instead of
         encoded as a bytestring. basedir can override the library's base
@@ -936,14 +937,6 @@ class Library(BaseLibrary):
             if query == PF_KEY_DEFAULT:
                 continue
             query = AndQuery.from_string(query)
-            if in_album:
-                # If we're treating this item as a member of the item,
-                # hack the query so that singleton queries always
-                # observe the item to be non-singleton.
-                for i, subquery in enumerate(query):
-                    if isinstance(subquery, SingletonQuery):
-                        query[i] = FalseQuery() if subquery.sense \
-                                   else TrueQuery()
             if query.match(item):
                 # The query matches the item! Use the corresponding path
                 # format.
@@ -955,7 +948,10 @@ class Library(BaseLibrary):
                     break
             else:
                 assert False, "no default path format"
-        subpath_tmpl = Template(path_format)
+        if isinstance(path_format, Template):
+            subpath_tmpl = path_format
+        else:
+            subpath_tmpl = Template(path_format)
 
         # Get the item's Album if it has one.
         album = self.get_album(item)
@@ -1023,7 +1019,7 @@ class Library(BaseLibrary):
 
         # build essential parts of query
         columns = ','.join([key for key in ITEM_KEYS if key != 'id'])
-        values = ','.join( ['?'] * (len(ITEM_KEYS)-1) )
+        values = ','.join(['?'] * (len(ITEM_KEYS) - 1))
         subvars = []
         for key in ITEM_KEYS:
             if key != 'id':
@@ -1041,6 +1037,7 @@ class Library(BaseLibrary):
 
         item._clear_dirty()
         item.id = new_id
+        self._memotable = {}
         return new_id
 
     def save(self, event=True):
@@ -1091,6 +1088,8 @@ class Library(BaseLibrary):
         self.conn.execute(query, subvars)
         item._clear_dirty()
 
+        self._memotable = {}
+
     def remove(self, item, delete=False, with_album=True):
         """Removes this item. If delete, then the associated file is
         removed from disk. If with_album, then the item's album (if any)
@@ -1111,8 +1110,10 @@ class Library(BaseLibrary):
         if delete:
             util.soft_remove(item.path)
             util.prune_dirs(os.path.dirname(item.path), self.directory)
-    
-    def move(self, item, copy=False, in_album=False, basedir=None,
+
+        self._memotable = {}
+
+    def move(self, item, copy=False, basedir=None,
              with_album=True):
         """Move the item to its designated location within the library
         directory (provided by destination()). Subdirectories are
@@ -1121,11 +1122,6 @@ class Library(BaseLibrary):
         
         If copy is True, moving the file is copied rather than moved.
         
-        If in_album is True, then the track is treated as part of an
-        album even if it does not yet have an album_id associated with
-        it. (This allows items to be moved before they are added to the
-        database, a performance optimization.)
-
         basedir overrides the library base directory for the
         destination.
 
@@ -1138,7 +1134,7 @@ class Library(BaseLibrary):
         side effect. You probably want to call save() to commit the DB
         transaction.
         """
-        dest = self.destination(item, in_album=in_album, basedir=basedir)
+        dest = self.destination(item, basedir=basedir)
         
         # Create necessary ancestry for the move.
         util.mkdirall(dest)
@@ -1366,13 +1362,13 @@ class Album(BaseAlbum):
             # Remove items.
             for item in self.items():
                 self._library.remove(item, delete, False)
-        
+
         if delete:
             # Delete art file.
             artpath = self.artpath
             if artpath:
                 util.soft_remove(artpath)
-        
+
         # Remove album from database.
         self._library.conn.execute(
             'DELETE FROM albums WHERE id=?',
@@ -1391,6 +1387,7 @@ class Album(BaseAlbum):
         if new_art == old_art:
             return
 
+        new_art = util.unique_path(new_art)
         log.debug('moving album art %s to %s' % (old_art, new_art))
         if copy:
             util.copy(old_art, new_art)
@@ -1399,7 +1396,7 @@ class Album(BaseAlbum):
         self.artpath = new_art
 
         # Prune old path when moving.
-        if not copy: 
+        if not copy:
             util.prune_dirs(os.path.dirname(old_art),
                             self._library.directory)
 
@@ -1508,12 +1505,12 @@ class DefaultTemplateFunctions(object):
     additional context to the functions -- specifically, the Item being
     evaluated.
     """
+    _prefix = 'tmpl_'
+
     def __init__(self, lib, item, pathmod):
         self.lib = lib
         self.item = item
         self.pathmod = pathmod
-
-    _prefix = 'tmpl_'
 
     def functions(self):
         """Returns a dictionary containing the functions defined in this
@@ -1521,9 +1518,8 @@ class DefaultTemplateFunctions(object):
         and the values are Python functions.
         """
         out = {}
-        for key in dir(self):
-            if key.startswith(self._prefix):
-                out[key[len(self._prefix):]] = getattr(self, key)
+        for key in self._func_names:
+            out[key[len(self._prefix):]] = getattr(self, key)
         return out
 
     @staticmethod
@@ -1579,6 +1575,14 @@ class DefaultTemplateFunctions(object):
         used. Both "keys" and "disam" should be given as
         whitespace-separated lists of field names.
         """
+        # Fast paths: no album or memoized value.
+        if self.item.album_id is None:
+            return None
+        memokey = ('aunique', keys, disam, self.item.album_id)
+        memoval = self.lib._memotable.get(memokey)
+        if memoval is not None:
+            return memoval
+
         keys = keys or 'albumartist album'
         disam = disam or 'albumtype year label catalognum albumdisambig'
         keys = keys.split()
@@ -1587,6 +1591,7 @@ class DefaultTemplateFunctions(object):
         album = self.lib.get_album(self.item)
         if not album:
             # Do nothing for singletons.
+            self.lib._memotable[memokey] = u''
             return u''
 
         # Find matching albums to disambiguate with.
@@ -1599,6 +1604,7 @@ class DefaultTemplateFunctions(object):
         # If there's only one album to matching these details, then do
         # nothing.
         if len(albums) == 1:
+            self.lib._memotable[memokey] = u''
             return u''
 
         # Find the first disambiguator that distinguishes the albums.
@@ -1614,9 +1620,18 @@ class DefaultTemplateFunctions(object):
 
         else:
             # No disambiguator distinguished all fields.
-            return u' {}'.format(album.id)
+            res = u' {}'.format(album.id)
+            self.lib._memotable[memokey] = res
+            return res
 
         # Flatten disambiguation value into a string.
         disam_value = util.sanitize_for_path(getattr(album, disambiguator),
                                              self.pathmod, disambiguator)
-        return u' [{}]'.format(disam_value)
+        res = u' [{}]'.format(disam_value)
+        self.lib._memotable[memokey] = res
+        return res
+
+# Get the name of tmpl_* functions in the above class.
+DefaultTemplateFunctions._func_names = \
+    [s for s in dir(DefaultTemplateFunctions)
+     if s.startswith(DefaultTemplateFunctions._prefix)]
