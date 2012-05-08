@@ -789,7 +789,9 @@ class Server(BaseServer):
         """
         # Path is ignored. Also, the real MPD does this asynchronously;
         # this is done inline.
+        print 'Building directory tree...'
         self.tree = vfs.libtree(self.lib)
+        print '... done.'
         self.updated_time = time.time()
 
 
@@ -928,14 +930,13 @@ class Server(BaseServer):
 
     def cmd_stats(self, conn):
         """Sends some statistics about the library."""
-        songs, totaltime = beets.library.TrueQuery().count(self.lib)
+        with self.lib.transaction() as tx:
+            songs, totaltime = beets.library.TrueQuery().count(tx)
 
-        statement = 'SELECT COUNT(DISTINCT artist), ' \
-                           'COUNT(DISTINCT album) FROM items'
-        c = self.lib.conn.execute(statement)
-        result = c.fetchone()
-        c.close()
-        artists, albums = result[0], result[1]
+            statement = 'SELECT COUNT(DISTINCT artist), ' \
+                        'COUNT(DISTINCT album) FROM items'
+            result = tx.query(statement)[0]
+            artists, albums = result[0], result[1]
 
         yield (u'artists: ' + unicode(artists),
                u'albums: ' + unicode(albums),
@@ -1032,10 +1033,10 @@ class Server(BaseServer):
         statement = 'SELECT DISTINCT ' + show_key + \
                     ' FROM items WHERE ' + clause + \
                     ' ORDER BY ' + show_key
-        c = self.lib.conn.cursor()
-        c.execute(statement, subvals)
+        with self.lib.transaction() as tx:
+            rows = tx.query(statement, subvals)
         
-        for row in c:
+        for row in rows:
             yield show_tag_canon + u': ' + unicode(row[0])
     
     def cmd_count(self, conn, tag, value):
@@ -1131,7 +1132,7 @@ class BPDPlugin(BeetsPlugin):
             Server(lib, host, port, password).run()
         except NoGstreamerError:
             global_log.error('Gstreamer Python bindings not found.')
-            global_log.error('Install "python-gst0.10", "py26-gst-python",'
+            global_log.error('Install "python-gst0.10", "py27-gst-python", '
                              'or similar package to use BPD.')
 
     def commands(self):

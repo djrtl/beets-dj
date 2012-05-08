@@ -42,7 +42,7 @@ def fetch_url(url):
     try:
         return urllib.urlopen(url).read()
     except IOError as exc:
-        log.debug('failed to fetch: {} ({})'.format(url, str(exc)))
+        log.debug('failed to fetch: {0} ({1})'.format(url, str(exc)))
         return None
 
 def unescape(text):
@@ -177,7 +177,6 @@ def fetch_item_lyrics(lib, loglevel, item, write):
     if write:
         item.write()
     lib.store(item)
-    lib.save()
 
 AUTOFETCH = True
 class LyricsPlugin(BeetsPlugin):

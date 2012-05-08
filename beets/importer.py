@@ -457,6 +457,19 @@ class ImportTask(object):
             return [self.item]
 
 
+    # Utilities.
+
+    def prune(self, filename):
+        """Prune any empty directories above the given file, which must
+        not exist. If this task has no `toppath` or the file path
+        provided is not within the `toppath`, then this function has no
+        effect.
+        """
+        assert not os.path.exists(filename)
+        if self.toppath:
+            util.prune_dirs(os.path.dirname(filename), self.toppath)
+
+
 # Full-album pipeline stages.
 
 def read_tasks(config):
@@ -705,7 +718,7 @@ def apply_choices(config):
         # Add items -- before path changes -- to the library. We add the
         # items now (rather than at the end) so that album structures
         # are in place before calls to destination().
-        try:
+        with lib.transaction():
             # Remove old items.
             for replaced in replaced_items.itervalues():
                 for item in replaced:
@@ -722,8 +735,6 @@ def apply_choices(config):
                 # Add tracks.
                 for item in items:
                     lib.add(item)
-        finally:
-            lib.save()
 
         # Move/copy files.
         task.old_paths = [item.path for item in items]  # For deletion.
@@ -731,7 +742,11 @@ def apply_choices(config):
             if config.copy or config.move:
                 if config.move:
                     # Just move the file.
+                    old_path = item.path
                     lib.move(item, False)
+                    # Clean up empty parent directory.
+                    if task.toppath:
+                        task.prune(old_path)
                 else:
                     # If it's a reimport, move the file. Otherwise, copy
                     # and keep track of the old path.
@@ -747,11 +762,9 @@ def apply_choices(config):
                 item.write()
 
         # Save new paths.
-        try:
+        with lib.transaction():
             for item in items:
                 lib.store(item)
-        finally:
-            lib.save()
 
 def fetch_art(config):
     """A coroutine that fetches and applies album art for albums where
@@ -769,15 +782,11 @@ def fetch_art(config):
 
             # Save the art if any was found.
             if artpath:
-                try:
-                    album = lib.get_album(task.album_id)
-                    album.set_art(artpath)
-                    if config.delete and not util.samefile(artpath,
-                                                           album.artpath):
-                        # Delete the original file after it's imported.
-                        os.remove(artpath)
-                finally:
-                    lib.save(False)
+                album = lib.get_album(task.album_id)
+                album.set_art(artpath, not (config.delete or config.move))
+
+                if (config.delete or config.move) and task.toppath:
+                    task.prune(artpath)
 
 def finalize(config):
     """A coroutine that finishes up importer tasks. In particular, the
@@ -813,8 +822,7 @@ def finalize(config):
                     os.remove(syspath(old_path))
                     # Clean up directory if it is emptied.
                     if task.toppath:
-                        util.prune_dirs(os.path.dirname(old_path),
-                                        task.toppath)
+                        task.prune(old_path)
 
         # Update progress.
         if config.resume is not False:

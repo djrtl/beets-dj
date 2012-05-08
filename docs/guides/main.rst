@@ -10,7 +10,7 @@ Installing
 ----------
 
 You will need Python. (Beets is written for `Python 2.7`_, but it works with
-2.5 and 2.6 as well. Python 3.x is not yet supported.)
+2.6 as well. Python 3.x is not yet supported.)
 
 .. _Python 2.7: http://www.python.org/download/releases/2.7.2/
 
@@ -211,7 +211,7 @@ So handy!
 Beets also has a ``stats`` command, just in case you want to see how much music
 you have::
 
-    $ ./beet stats
+    $ beet stats
     Tracks: 13019
     Total time: 4.9 weeks
     Total size: 71.1 GB

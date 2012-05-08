@@ -72,7 +72,7 @@ class AnySubstringQueryTest(unittest.TestCase):
     def test_restriction_completeness(self):
         q = beets.library.AnySubstringQuery('title', ['title'])
         self.assertEqual(self.lib.items(q).next().title, 'the title')
-        
+
     def test_restriction_soundness(self):
         q = beets.library.AnySubstringQuery('title', ['artist'])
         self.assertRaises(StopIteration, self.lib.items(q).next)
@@ -98,7 +98,6 @@ class AnyRegexpQueryTest(unittest.TestCase):
         q = beets.library.AnyRegexpQuery(r'the ti$', ['title'])
         self.assertRaises(StopIteration, self.lib.items(q).next)
 
-
 # Convenient asserts for matching items.
 class AssertsMixin(object):
     def assert_matched(self, result_iterator, title):
@@ -111,7 +110,7 @@ class AssertsMixin(object):
         self.assert_matched(result_iterator, 'Lovers Who Uncover')
         self.assert_matched(result_iterator, 'Boracay')
         self.assert_done(result_iterator)
-    
+
 class GetTest(unittest.TestCase, AssertsMixin):
     def setUp(self):
         self.lib = beets.library.Library(
@@ -297,7 +296,6 @@ class MemoryGetTest(unittest.TestCase, AssertsMixin):
     def test_unicode_query(self):
         self.single_item.title = u'caf\xe9'
         self.lib.store(self.single_item)
-        self.lib.save()
 
         q = u'title:caf\xe9'
         results = self.lib.items(q)
@@ -411,13 +409,15 @@ class CountTest(unittest.TestCase):
         self.lib.add(self.item)
 
     def test_count_gets_single_item(self):
-        songs, totaltime = beets.library.TrueQuery().count(self.lib)
+        with self.lib.transaction() as tx:
+            songs, totaltime = beets.library.TrueQuery().count(tx)
         self.assertEqual(songs, 1)
         self.assertEqual(totaltime, self.item.length)
 
     def test_count_works_for_empty_library(self):
         self.lib.remove(self.item)
-        songs, totaltime = beets.library.TrueQuery().count(self.lib)
+        with self.lib.transaction() as tx:
+            songs, totaltime = beets.library.TrueQuery().count(tx)
         self.assertEqual(songs, 0)
         self.assertEqual(totaltime, 0.0)
         

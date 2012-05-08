@@ -292,7 +292,7 @@ class ImportApplyTest(unittest.TestCase, _common.ExtraAsserts):
         # First, add the item to the library.
         temp_item = library.Item.from_path(self.srcpath)
         self.lib.add(temp_item)
-        self.lib.save()
+        self.lib.conn.commit()
 
         # Then, re-import the same file.
         coro = importer.apply_choices(_common.iconfig(self.lib))
@@ -306,6 +306,25 @@ class ImportApplyTest(unittest.TestCase, _common.ExtraAsserts):
         # Also, the old file should not be in old_paths because it does
         # not exist.
         self.assertEqual(task.old_paths, [])
+
+    def test_apply_with_move(self):
+        config = _common.iconfig(self.lib, move=True)
+        applyc = importer.apply_choices(config)
+        applyc.next()
+        finalize = importer.finalize(config)
+        finalize.next()
+        _call_apply([applyc], [self.i], self.info)
+        self.assertExists(list(self.lib.items())[0].path)
+        self.assertNotExists(self.srcpath)
+
+    def test_apply_with_move_prunes_empty_directory(self):
+        config = _common.iconfig(self.lib, move=True)
+        applyc = importer.apply_choices(config)
+        applyc.next()
+        finalize = importer.finalize(config)
+        finalize.next()
+        _call_apply([applyc], [self.i], self.info, self.srcdir)
+        self.assertNotExists(os.path.dirname(self.srcpath))
 
 class AsIsApplyTest(unittest.TestCase):
     def setUp(self):
@@ -729,7 +748,7 @@ class ArtFetchTest(unittest.TestCase, _common.ExtraAsserts):
         self.i = _common.item()
         self.i.path = itempath
         self.album = self.lib.add_album([self.i])
-        self.lib.save()
+        self.lib.conn.commit()
 
         # Set up an art-fetching coroutine.
         self.config = _common.iconfig(self.lib)
@@ -794,6 +813,11 @@ class ArtFetchTest(unittest.TestCase, _common.ExtraAsserts):
 
     def test_delete_original_file(self):
         self.config.delete = True
+        self._fetch_art(True)
+        self.assertNotExists(self.art_file)
+
+    def test_move_original_file(self):
+        self.config.move = True
         self._fetch_art(True)
         self.assertNotExists(self.art_file)
 

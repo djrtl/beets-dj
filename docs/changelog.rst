@@ -14,6 +14,9 @@ Changelog
   The new ``%aunique{}`` template function, which is included in the default
   path formats, ensures that Crystal Castles' albums will be placed into
   different directories. See :ref:`aunique` for details.
+* Beets queries can now use **regular expressions**. Use an additional ``:`` in
+  your query to enable regex matching. See :ref:`regex` for the full details.
+  Thanks to Matteo Mecucci.
 * Artist **sort names** are now fetched from MusicBrainz. There are two new data
   fields, ``artist_sort`` and ``albumartist_sort``, that contain sortable artist
   names like "Beatles, The". These fields are also used to sort albums and items
@@ -38,6 +41,8 @@ Changelog
 * New :doc:`/plugins/importfeeds`: Catalog imported files in ``m3u`` playlist
   files or as symlinks for easy importing to other systems. Thanks to Fabrice
   Laporte.
+* The ``-f`` (output format) option to the ``beet list`` command can now contain
+  template functions as well as field references. Thanks to Steve Dougherty.
 * A new command ``beet fields`` displays the available metadata fields (thanks
   to Matteo Mecucci).
 * The ``import`` command now has a ``--noincremental`` or ``-I`` flag to disable
@@ -51,12 +56,16 @@ Changelog
   store music). To customize your character substitutions, see :ref:`the replace
   config option <replace>`.
 * Filename collisions are now avoided when moving album art.
+* :doc:`/plugins/bpd`: Print messages to show when directory tree is being
+  constructed.
 * :doc:`/plugins/bpd`: Use Gstreamer's ``playbin2`` element instead of the
   deprecated ``playbin``.
 * :doc:`/plugins/bpd`: Listings are now sorted (thanks once again to Matteo
   Mecucci).
 * Filenames are normalized with Unicode Normal Form D (NFD) on Mac OS X and NFC
   on all other platforms.
+* Significant internal restructuring to avoid SQLite locking errors. As part of
+  these changes, the not-very-useful "save" plugin event has been removed.
 
 .. _pyacoustid: https://github.com/sampsyo/pyacoustid
 
