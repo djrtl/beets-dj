@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -93,7 +93,7 @@ def albums_in_dir(path, ignore=()):
                 collapse_root = root
                 collapse_items = []
                 continue
-        
+
         # If it's nonempty, yield it.
         if items:
             yield root, items
@@ -106,6 +106,8 @@ def apply_item_metadata(item, track_info):
     """Set an item's metadata from its matched TrackInfo object.
     """
     item.artist = track_info.artist
+    item.artist_sort = track_info.artist_sort
+    item.artist_credit = track_info.artist_credit
     item.title = track_info.title
     item.mb_trackid = track_info.track_id
     if track_info.artist_id:
@@ -113,9 +115,10 @@ def apply_item_metadata(item, track_info):
     # At the moment, the other metadata is left intact (including album
     # and track number). Perhaps these should be emptied?
 
-def apply_metadata(items, album_info):
-    """Set the items' metadata to match an AlbumInfo object. The list
-    of items must be ordered.
+def apply_metadata(items, album_info, per_disc_numbering=False):
+    """Set the items' metadata to match an AlbumInfo object. The list of
+    items must be ordered. If `per_disc_numbering`, then the track
+    numbers are per-disc instead of per-release.
     """
     for index, (item, track_info) in enumerate(zip(items, album_info.tracks)):
         # Album, artist, track count.
@@ -129,12 +132,12 @@ def apply_metadata(items, album_info):
         item.album = album_info.album
         item.tracktotal = len(items)
 
-        # Artist sort names.
-        if track_info.artist_sort:
-            item.artist_sort = track_info.artist_sort
-        else:
-            item.artist_sort = album_info.artist_sort
+        # Artist sort and credit names.
+        item.artist_sort = track_info.artist_sort or album_info.artist_sort
+        item.artist_credit = track_info.artist_credit or \
+                             album_info.artist_credit
         item.albumartist_sort = album_info.artist_sort
+        item.albumartist_credit = album_info.artist_credit
 
         # Release date.
         if album_info.year:
@@ -144,9 +147,13 @@ def apply_metadata(items, album_info):
         if album_info.day:
             item.day = album_info.day
 
-        # Title and track index.
+        # Title.
         item.title = track_info.title
-        item.track = index + 1
+
+        if per_disc_numbering:
+            item.track = track_info.medium_index
+        else:
+            item.track = index + 1
 
         # Disc and disc count.
         item.disc = track_info.medium

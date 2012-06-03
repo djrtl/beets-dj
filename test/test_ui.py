@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -45,9 +45,17 @@ class ListTest(unittest.TestCase):
 
     def tearDown(self):
         self.io.restore()
-        
+
+    def _run_list(self, query='', album=False, path=False, fmt=None):
+        if not fmt:
+            if album:
+                fmt = commands.DEFAULT_LIST_FORMAT_ALBUM
+            else:
+                fmt = commands.DEFAULT_LIST_FORMAT_ITEM
+        commands.list_items(self.lib, query, album, path, fmt)
+
     def test_list_outputs_item(self):
-        commands.list_items(self.lib, '', False, False, None)
+        self._run_list()
         out = self.io.getoutput()
         self.assertTrue(u'the title' in out)
 
@@ -56,49 +64,49 @@ class ListTest(unittest.TestCase):
         self.lib.store(self.item)
         self.lib.conn.commit()
 
-        commands.list_items(self.lib, [u'na\xefve'], False, False, None)
+        self._run_list([u'na\xefve'])
         out = self.io.getoutput()
         self.assertTrue(u'na\xefve' in out.decode(self.io.stdout.encoding))
 
     def test_list_item_path(self):
-        commands.list_items(self.lib, '', False, True, None)
+        self._run_list(path=True)
         out = self.io.getoutput()
         self.assertEqual(out.strip(), u'xxx/yyy')
 
     def test_list_album_outputs_something(self):
-        commands.list_items(self.lib, '', True, False, None)
+        self._run_list(album=True)
         out = self.io.getoutput()
         self.assertGreater(len(out), 0)
 
     def test_list_album_path(self):
-        commands.list_items(self.lib, '', True, True, None)
+        self._run_list(album=True, path=True)
         out = self.io.getoutput()
         self.assertEqual(out.strip(), u'xxx')
-    
+
     def test_list_album_omits_title(self):
-        commands.list_items(self.lib, '', True, False, None)
+        self._run_list(album=True)
         out = self.io.getoutput()
         self.assertTrue(u'the title' not in out)
 
     def test_list_uses_track_artist(self):
-        commands.list_items(self.lib, '', False, False, None)
+        self._run_list()
         out = self.io.getoutput()
         self.assertTrue(u'the artist' in out)
         self.assertTrue(u'the album artist' not in out)
-    
+
     def test_list_album_uses_album_artist(self):
-        commands.list_items(self.lib, '', True, False, None)
+        self._run_list(album=True)
         out = self.io.getoutput()
         self.assertTrue(u'the artist' not in out)
         self.assertTrue(u'the album artist' in out)
 
     def test_list_item_format_artist(self):
-        commands.list_items(self.lib, '', False, False, '$artist')
+        self._run_list(fmt='$artist')
         out = self.io.getoutput()
         self.assertTrue(u'the artist' in out)
 
     def test_list_item_format_multiple(self):
-        commands.list_items(self.lib, '', False, False, '$artist - $album - $year')
+        self._run_list(fmt='$artist - $album - $year')
         out = self.io.getoutput()
         self.assertTrue(u'1' in out)
         self.assertTrue(u'the album' in out)
@@ -106,13 +114,13 @@ class ListTest(unittest.TestCase):
         self.assertEqual(u'the artist - the album - 1', out.strip())
 
     def test_list_album_format(self):
-        commands.list_items(self.lib, '', True, False, '$genre')
+        self._run_list(album=True, fmt='$genre')
         out = self.io.getoutput()
         self.assertTrue(u'the genre' in out)
         self.assertTrue(u'the album' not in out)
 
     def test_list_item_path_ignores_format(self):
-        commands.list_items(self.lib, '', False, True, '$year - $artist')
+        self._run_list(path=True, fmt='$year - $artist')
         out = self.io.getoutput()
         self.assertEqual(out.strip(), u'xxx/yyy')
 
@@ -407,7 +415,7 @@ class PrintTest(unittest.TestCase):
         self.io.install()
     def tearDown(self):
         self.io.restore()
-    
+
     def test_print_without_locale(self):
         lang = os.environ.get('LANG')
         if lang:
@@ -470,9 +478,9 @@ class AutotagTest(unittest.TestCase):
 class ImportTest(unittest.TestCase):
     def test_quiet_timid_disallowed(self):
         self.assertRaises(ui.UserError, commands.import_files,
-                          None, [], False, False, False, False, None, False, False,
-                          False, False, True, False, None, False, True, None,
-                          False, [])
+                          None, [], False, False, False, False, None, False,
+                          False, False, False, True, False, None, False, True,
+                          None, False, [], False)
 
 class InputTest(unittest.TestCase):
     def setUp(self):

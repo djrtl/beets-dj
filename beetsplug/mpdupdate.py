@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -20,6 +20,7 @@ Put something like the following in your .beetsconfig to configure:
     port = 6600
     password = seekrit
 """
+from __future__ import print_function
 
 from beets.plugins import BeetsPlugin
 from beets import ui
@@ -60,20 +61,20 @@ def update_mpd(host='localhost', port=6600, password=None):
     """Sends the "update" command to the MPD server indicated,
     possibly authenticating with a password first.
     """
-    print 'Updating MPD database...'
+    print('Updating MPD database...')
 
     s = BufferedSocket()
     s.connect(host, port)
     resp = s.readline()
     if 'OK MPD' not in resp:
-        print 'MPD connection failed:', repr(resp)
+        print('MPD connection failed:', repr(resp))
         return
-    
+
     if password:
         s.send('password "%s"\n' % password)
         resp = s.readline()
         if 'OK' not in resp:
-            print 'Authentication failed:', repr(resp)
+            print('Authentication failed:', repr(resp))
             s.send('close\n')
             s.close()
             return
@@ -81,11 +82,11 @@ def update_mpd(host='localhost', port=6600, password=None):
     s.send('update\n')
     resp = s.readline()
     if 'updating_db' not in resp:
-        print 'Update failed:', repr(resp)
+        print('Update failed:', repr(resp))
 
     s.send('close\n')
     s.close()
-    print '... updated.'
+    print('... updated.')
 
 options = {
     'host': 'localhost',
@@ -102,5 +103,5 @@ class MPDUpdatePlugin(BeetsPlugin):
             ui.config_val(config, 'mpdupdate', 'password', '')
 
 @MPDUpdatePlugin.listen('import')
-def update(lib=None):
+def update(lib=None, paths=None):
     update_mpd(options['host'], options['port'], options['password'])

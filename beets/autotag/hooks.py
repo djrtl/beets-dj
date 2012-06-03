@@ -1,5 +1,5 @@
 # This file is part of beets.
-# Copyright 2011, Adrian Sampson.
+# Copyright 2012, Adrian Sampson.
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -8,14 +8,16 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """Glue between metadata sources and the matching logic."""
-
+import logging
 from beets import plugins
 from beets.autotag import mb
+
+log = logging.getLogger('beets')
 
 # Classes used to represent candidate options.
 
@@ -45,6 +47,7 @@ class AlbumInfo(object):
     - ``albumstatus``: MusicBrainz release status (Official, etc.)
     - ``media``: delivery mechanism (Vinyl, etc.)
     - ``albumdisambig``: MusicBrainz release disambiguation comment
+    - ``artist_credit``: Release-specific artist name
 
     The fields up through ``tracks`` are required. The others are
     optional and may be None.
@@ -54,7 +57,7 @@ class AlbumInfo(object):
                  label=None, mediums=None, artist_sort=None,
                  releasegroup_id=None, catalognum=None, script=None,
                  language=None, country=None, albumstatus=None, media=None,
-                 albumdisambig=None):
+                 albumdisambig=None, artist_credit=None):
         self.album = album
         self.album_id = album_id
         self.artist = artist
@@ -77,6 +80,7 @@ class AlbumInfo(object):
         self.albumstatus = albumstatus
         self.media = media
         self.albumdisambig = albumdisambig
+        self.artist_credit = artist_credit
 
 class TrackInfo(object):
     """Describes a canonical track present on a release. Appears as part
@@ -91,13 +95,14 @@ class TrackInfo(object):
     - ``medium_index``: the track's position on the disc
     - ``artist_sort``: name of the track artist for sorting
     - ``disctitle``: name of the individual medium (subtitle)
+    - ``artist_credit``: Recording-specific artist name
 
     Only ``title`` and ``track_id`` are required. The rest of the fields
     may be None.
     """
     def __init__(self, title, track_id, artist=None, artist_id=None,
                  length=None, medium=None, medium_index=None,
-                 artist_sort=None, disctitle=None):
+                 artist_sort=None, disctitle=None, artist_credit=None):
         self.title = title
         self.track_id = track_id
         self.artist = artist
@@ -107,17 +112,24 @@ class TrackInfo(object):
         self.medium_index = medium_index
         self.artist_sort = artist_sort
         self.disctitle = disctitle
+        self.artist_credit = artist_credit
 
 
 # Aggregation of sources.
 
 def _album_for_id(album_id):
     """Get an album corresponding to a MusicBrainz release ID."""
-    return mb.album_for_id(album_id)
+    try:
+        return mb.album_for_id(album_id)
+    except mb.MusicBrainzAPIError as exc:
+        exc.log(log)
 
 def _track_for_id(track_id):
     """Get an item for a recording MBID."""
-    return mb.track_for_id(track_id)
+    try:
+        return mb.track_for_id(track_id)
+    except mb.MusicBrainzAPIError as exc:
+        exc.log(log)
 
 def _album_candidates(items, artist, album, va_likely):
     """Search for album matches. ``items`` is a list of Item objects
@@ -130,11 +142,17 @@ def _album_candidates(items, artist, album, va_likely):
 
     # Base candidates if we have album and artist to match.
     if artist and album:
-        out.extend(mb.match_album(artist, album, len(items)))
+        try:
+            out.extend(mb.match_album(artist, album, len(items)))
+        except mb.MusicBrainzAPIError as exc:
+            exc.log(log)
 
     # Also add VA matches from MusicBrainz where appropriate.
     if va_likely and album:
-        out.extend(mb.match_album(None, album, len(items)))
+        try:
+            out.extend(mb.match_album(None, album, len(items)))
+        except mb.MusicBrainzAPIError as exc:
+            exc.log(log)
 
     # Candidates from plugins.
     out.extend(plugins.candidates(items))
@@ -150,7 +168,10 @@ def _item_candidates(item, artist, title):
 
     # MusicBrainz candidates.
     if artist and title:
-        out.extend(mb.match_track(artist, title))
+        try:
+            out.extend(mb.match_track(artist, title))
+        except mb.MusicBrainzAPIError as exc:
+            exc.log(log)
 
     # Plugin candidates.
     out.extend(plugins.item_candidates(item))

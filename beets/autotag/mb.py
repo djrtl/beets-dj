@@ -1,5 +1,5 @@
 # This file is part of beets.
-# Copyright 2011, Adrian Sampson.
+# Copyright 2012, Adrian Sampson.
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -16,9 +16,11 @@
 """
 import logging
 import musicbrainzngs
+import traceback
 
 import beets.autotag.hooks
 import beets
+from beets import util
 
 SEARCH_LIMIT = 5
 VARIOUS_ARTISTS_ID = '89ad4ac3-39f7-470e-963a-56509c546377'
@@ -26,8 +28,18 @@ VARIOUS_ARTISTS_ID = '89ad4ac3-39f7-470e-963a-56509c546377'
 musicbrainzngs.set_useragent('beets', beets.__version__,
                              'http://beets.radbox.org/')
 
-class ServerBusyError(Exception): pass
-class BadResponseError(Exception): pass
+class MusicBrainzAPIError(util.HumanReadableException):
+    """An error while talking to MusicBrainz. The `query` field is the
+    parameter to the action and may have any type.
+    """
+    def __init__(self, reason, verb, query, tb=None):
+        self.query = query
+        super(MusicBrainzAPIError, self).__init__(reason, verb, tb)
+
+    def get_message(self):
+        return u'"{0}" in {1} with query {2}'.format(
+            self._reasonstr(), self.verb, repr(self.query)
+        )
 
 log = logging.getLogger('beets')
 
@@ -45,6 +57,44 @@ else:
     _mb_release_search = musicbrainzngs.search_releases
     _mb_recording_search = musicbrainzngs.search_recordings
 
+def _flatten_artist_credit(credit):
+    """Given a list representing an ``artist-credit`` block, flatten the
+    data into a triple of joined artist name strings: canonical, sort, and
+    credit.
+    """
+    artist_parts = []
+    artist_sort_parts = []
+    artist_credit_parts = []
+    for el in credit:
+        if isinstance(el, basestring):
+            # Join phrase.
+            artist_parts.append(el)
+            artist_credit_parts.append(el)
+            artist_sort_parts.append(el)
+
+        else:
+            # An artist.
+            cur_artist_name = el['artist']['name']
+            artist_parts.append(cur_artist_name)
+
+            # Artist sort name.
+            if 'sort-name' in el['artist']:
+                artist_sort_parts.append(el['artist']['sort-name'])
+            else:
+                artist_sort_parts.append(cur_artist_name)
+
+            # Artist credit.
+            if 'name' in el:
+                artist_credit_parts.append(el['name'])
+            else:
+                artist_credit_parts.append(cur_artist_name)
+
+    return (
+        ''.join(artist_parts),
+        ''.join(artist_sort_parts),
+        ''.join(artist_credit_parts),
+    )
+
 def track_info(recording, medium=None, medium_index=None):
     """Translates a MusicBrainz recording result dictionary into a beets
     ``TrackInfo`` object. ``medium_index``, if provided, is the track's
@@ -55,15 +105,14 @@ def track_info(recording, medium=None, medium_index=None):
                                          medium=medium,
                                          medium_index=medium_index)
 
-    # Get the track artist credit.
-    if recording.get('artist-credit-phrase'):
-        info.artist = recording['artist-credit-phrase']
+    if recording.get('artist-credit'):
+        # Get the artist names.
+        info.artist, info.artist_sort, info.artist_credit = \
+            _flatten_artist_credit(recording['artist-credit'])
 
-    # Get the ID and sort name of the first artist.
-    if 'artist-credit' in recording:
+        # Get the ID and sort name of the first artist.
         artist = recording['artist-credit'][0]['artist']
         info.artist_id = artist['id']
-        info.artist_sort = artist['sort-name']
 
     if recording.get('length'):
         info.length = int(recording['length'])/(1000.0)
@@ -85,13 +134,8 @@ def album_info(release):
     AlbumInfo object containing the interesting data about that release.
     """
     # Get artist name using join phrases.
-    artist_parts = []
-    for el in release['artist-credit']:
-        if isinstance(el, basestring):
-            artist_parts.append(el)
-        else:
-            artist_parts.append(el['artist']['name'])
-    artist_name = ''.join(artist_parts)
+    artist_name, artist_sort_name, artist_credit_name = \
+        _flatten_artist_credit(release['artist-credit'])
 
     # Basic info.
     track_infos = []
@@ -114,7 +158,8 @@ def album_info(release):
         release['artist-credit'][0]['artist']['id'],
         track_infos,
         mediums=len(release['medium-list']),
-        artist_sort=release['artist-credit'][0]['artist']['sort-name'],
+        artist_sort=artist_sort_name,
+        artist_credit=artist_credit_name,
     )
     info.va = info.artist_id == VARIOUS_ARTISTS_ID
     info.asin = release.get('asin')
@@ -161,7 +206,8 @@ def album_info(release):
 
 def match_album(artist, album, tracks=None, limit=SEARCH_LIMIT):
     """Searches for a single album ("release" in MusicBrainz parlance)
-    and returns an iterator over AlbumInfo objects.
+    and returns an iterator over AlbumInfo objects. May raise a
+    MusicBrainzAPIError.
 
     The query consists of an artist name, an album name, and,
     optionally, a number of tracks on the album.
@@ -180,7 +226,11 @@ def match_album(artist, album, tracks=None, limit=SEARCH_LIMIT):
     if not any(criteria.itervalues()):
         return
 
-    res = _mb_release_search(limit=limit, **criteria)
+    try:
+        res = _mb_release_search(limit=limit, **criteria)
+    except musicbrainzngs.MusicBrainzError as exc:
+        raise MusicBrainzAPIError(exc, 'release search', criteria,
+                                  traceback.format_exc())
     for release in res['release-list']:
         # The search result is missing some data (namely, the tracks),
         # so we just use the ID and fetch the rest of the information.
@@ -190,7 +240,7 @@ def match_album(artist, album, tracks=None, limit=SEARCH_LIMIT):
 
 def match_track(artist, title, limit=SEARCH_LIMIT):
     """Searches for a single track and returns an iterable of TrackInfo
-    objects.
+    objects. May raise a MusicBrainzAPIError.
     """
     criteria = {
         'artist': artist.lower(),
@@ -200,28 +250,39 @@ def match_track(artist, title, limit=SEARCH_LIMIT):
     if not any(criteria.itervalues()):
         return
 
-    res = _mb_recording_search(limit=limit, **criteria)
+    try:
+        res = _mb_recording_search(limit=limit, **criteria)
+    except musicbrainzngs.MusicBrainzError as exc:
+        raise MusicBrainzAPIError(exc, 'recording search', criteria,
+                                  traceback.format_exc())
     for recording in res['recording-list']:
         yield track_info(recording)
 
 def album_for_id(albumid):
     """Fetches an album by its MusicBrainz ID and returns an AlbumInfo
-    object or None if the album is not found.
+    object or None if the album is not found. May raise a
+    MusicBrainzAPIError.
     """
     try:
         res = musicbrainzngs.get_release_by_id(albumid, RELEASE_INCLUDES)
     except musicbrainzngs.ResponseError:
         log.debug('Album ID match failed.')
         return None
+    except musicbrainzngs.MusicBrainzError as exc:
+        raise MusicBrainzAPIError(exc, 'get release by ID', albumid,
+                                  traceback.format_exc())
     return album_info(res['release'])
 
 def track_for_id(trackid):
     """Fetches a track by its MusicBrainz ID. Returns a TrackInfo object
-    or None if no track is found.
+    or None if no track is found. May raise a MusicBrainzAPIError.
     """
     try:
         res = musicbrainzngs.get_recording_by_id(trackid, TRACK_INCLUDES)
     except musicbrainzngs.ResponseError:
         log.debug('Track ID match failed.')
         return None
+    except musicbrainzngs.MusicBrainzError as exc:
+        raise MusicBrainzAPIError(exc, 'get recording by ID', trackid,
+                                  traceback.format_exc())
     return track_info(res['recording'])

@@ -1,5 +1,5 @@
 # This file is part of beets.
-# Copyright 2011, Adrian Sampson.
+# Copyright 2012, Adrian Sampson.
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -31,7 +31,7 @@ def info(paths):
     # Line format.
     other_fields = ['album art']
     maxwidth = max(len(name) for name in fields + other_fields)
-    lineformat = u'{{:>{0}}}: {{0}}'.format(maxwidth)
+    lineformat = u'{{0:>{0}}}: {{1}}'.format(maxwidth)
 
     first = True
     for path in paths:

@@ -8,14 +8,15 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """Provides the basic, interface-agnostic workflow for importing and
 autotagging music files.
 """
-from __future__ import with_statement # Python 2.5
+from __future__ import print_function
+
 import os
 import logging
 import pickle
@@ -56,7 +57,7 @@ def tag_log(logfile, status, path):
     reflect the reason the album couldn't be tagged.
     """
     if logfile:
-        print >>logfile, '%s %s' % (status, path)
+        print('{0} {1}'.format(status, path), file=logfile)
         logfile.flush()
 
 def log_choice(config, task, duplicate=False):
@@ -193,7 +194,7 @@ def _save_state(state):
     try:
         with open(STATE_FILE, 'w') as f:
             pickle.dump(state, f)
-    except IOError, exc:
+    except IOError as exc:
         log.error(u'state file could not be written: %s' % unicode(exc))
 
 
@@ -263,7 +264,7 @@ class ImportConfig(object):
                'choose_match_func', 'should_resume_func', 'threaded',
                'autot', 'singletons', 'timid', 'choose_item_func',
                'query', 'incremental', 'ignore',
-               'resolve_duplicate_func']
+               'resolve_duplicate_func', 'per_disc_numbering']
     def __init__(self, **kwargs):
         for slot in self._fields:
             setattr(self, slot, kwargs[slot])
@@ -460,13 +461,13 @@ class ImportTask(object):
     # Utilities.
 
     def prune(self, filename):
-        """Prune any empty directories above the given file, which must
-        not exist. If this task has no `toppath` or the file path
-        provided is not within the `toppath`, then this function has no
-        effect.
+        """Prune any empty directories above the given file. If this
+        task has no `toppath` or the file path provided is not within
+        the `toppath`, then this function has no effect. Similarly, if
+        the file still exists, no pruning is performed, so it's safe to
+        call when the file in question may not have been removed.
         """
-        assert not os.path.exists(filename)
-        if self.toppath:
+        if self.toppath and not os.path.exists(filename):
             util.prune_dirs(os.path.dirname(filename), self.toppath)
 
 
@@ -502,14 +503,14 @@ def read_tasks(config):
     if config.incremental:
         incremental_skipped = 0
         history_dirs = history_get()
-    
+
     for toppath in config.paths:
         # Check whether the path is to a file.
         if config.singletons and not os.path.isdir(syspath(toppath)):
             item = library.Item.from_path(toppath)
             yield ImportTask.item_task(item)
             continue
-        
+
         # Produce paths under this directory.
         if progress:
             resume_dir = resume_dirs.get(toppath)
@@ -599,11 +600,12 @@ def user_query(config):
         task = yield task
         if task.sentinel:
             continue
-        
+
         # Ask the user for a choice.
         choice = config.choose_match_func(task, config)
         task.set_choice(choice)
         log_choice(config, task)
+        plugins.send('import_task_choice', task=task, config=config)
 
         # As-tracks: transition to singleton workflow.
         if choice is action.TRACKS:
@@ -617,7 +619,7 @@ def user_query(config):
                 while True:
                     item_task = yield
                     item_tasks.append(item_task)
-            ipl = pipeline.Pipeline((emitter(), item_lookup(config), 
+            ipl = pipeline.Pipeline((emitter(), item_lookup(config),
                                      item_query(config), collector()))
             ipl.run_sequential()
             task = pipeline.multiple(item_tasks)
@@ -650,14 +652,14 @@ def show_progress(config):
         # Behave as if ASIS were selected.
         task.set_null_match()
         task.set_choice(action.ASIS)
-        
+
 def apply_choices(config):
     """A coroutine for applying changes to albums during the autotag
     process.
     """
     lib = _reopen_lib(config.lib)
     task = None
-    while True:    
+    while True:
         task = yield task
         if task.should_skip():
             continue
@@ -671,7 +673,10 @@ def apply_choices(config):
         # Change metadata.
         if task.should_write_tags():
             if task.is_album:
-                autotag.apply_metadata(task.items, task.info)
+                autotag.apply_metadata(
+                    task.items, task.info,
+                    per_disc_numbering=config.per_disc_numbering
+                )
             else:
                 autotag.apply_item_metadata(task.item, task.info)
             plugins.send('import_task_apply', config=config, task=task)
@@ -683,14 +688,14 @@ def apply_choices(config):
         # Find existing item entries that these are replacing (for
         # re-imports). Old album structures are automatically cleaned up
         # when the last item is removed.
-        replaced_items = defaultdict(list)
+        task.replaced_items = defaultdict(list)
         for item in items:
             dup_items = lib.items(library.MatchQuery('path', item.path))
             for dup_item in dup_items:
-                replaced_items[item].append(dup_item)
+                task.replaced_items[item].append(dup_item)
                 log.debug('replacing item %i: %s' %
                           (dup_item.id, displayable_path(item.path)))
-        log.debug('%i of %i items replaced' % (len(replaced_items),
+        log.debug('%i of %i items replaced' % (len(task.replaced_items),
                                                len(items)))
 
         # Find old items that should be replaced as part of a duplicate
@@ -711,7 +716,7 @@ def apply_choices(config):
                 if lib.directory in util.ancestry(duplicate_path):
                     log.debug(u'deleting replaced duplicate %s' %
                               util.displayable_path(duplicate_path))
-                    util.soft_remove(duplicate_path)
+                    util.remove(duplicate_path)
                     util.prune_dirs(os.path.dirname(duplicate_path),
                                     lib.directory)
 
@@ -720,7 +725,7 @@ def apply_choices(config):
         # are in place before calls to destination().
         with lib.transaction():
             # Remove old items.
-            for replaced in replaced_items.itervalues():
+            for replaced in task.replaced_items.itervalues():
                 for item in replaced:
                     lib.remove(item)
             for item in duplicate_items:
@@ -736,27 +741,45 @@ def apply_choices(config):
                 for item in items:
                     lib.add(item)
 
+def manipulate_files(config):
+    """A coroutine (pipeline stage) that performs necessary file
+    manipulations *after* items have been added to the library.
+    """
+    lib = _reopen_lib(config.lib)
+    task = None
+    while True:
+        task = yield task
+        if task.should_skip():
+            continue
+
         # Move/copy files.
+        items = task.all_items()
         task.old_paths = [item.path for item in items]  # For deletion.
         for item in items:
-            if config.copy or config.move:
-                if config.move:
-                    # Just move the file.
-                    old_path = item.path
-                    lib.move(item, False)
-                    # Clean up empty parent directory.
-                    if task.toppath:
-                        task.prune(old_path)
-                else:
-                    # If it's a reimport, move the file. Otherwise, copy
-                    # and keep track of the old path.
-                    old_path = item.path
-                    do_copy = not bool(replaced_items[item])
-                    lib.move(item, do_copy)
-                    if not do_copy:
-                        # If we moved the item, remove the now-nonexistent
-                        # file from old_paths.
+            if config.move:
+                # Just move the file.
+                old_path = item.path
+                lib.move(item, False)
+                task.prune(old_path)
+            elif config.copy:
+                # If it's a reimport, move in-library files and copy
+                # out-of-library files. Otherwise, copy and keep track
+                # of the old path.
+                old_path = item.path
+                if task.replaced_items[item]:
+                    # This is a reimport. Move in-library files and copy
+                    # out-of-library files.
+                    if lib.directory in util.ancestry(old_path):
+                        lib.move(item, False)
+                        # We moved the item, so remove the
+                        # now-nonexistent file from old_paths.
                         task.old_paths.remove(old_path)
+                    else:
+                        lib.move(item, True)
+                else:
+                    # A normal import. Just copy files and keep track of
+                    # old paths.
+                    lib.move(item, True)
 
             if config.write and task.should_write_tags():
                 item.write()
@@ -785,7 +808,7 @@ def fetch_art(config):
                 album = lib.get_album(task.album_id)
                 album.set_art(artpath, not (config.delete or config.move))
 
-                if (config.delete or config.move) and task.toppath:
+                if config.delete or config.move:
                     task.prune(artpath)
 
 def finalize(config):
@@ -819,10 +842,8 @@ def finalize(config):
             for old_path in task.old_paths:
                 # Only delete files that were actually copied.
                 if old_path not in new_paths:
-                    os.remove(syspath(old_path))
-                    # Clean up directory if it is emptied.
-                    if task.toppath:
-                        task.prune(old_path)
+                    util.remove(syspath(old_path), False)
+                    task.prune(old_path)
 
         # Update progress.
         if config.resume is not False:
@@ -862,6 +883,7 @@ def item_query(config):
         choice = config.choose_item_func(task, config)
         task.set_choice(choice)
         log_choice(config, task)
+        plugins.send('import_task_choice', task=task, config=config)
 
         # Duplicate check.
         if task.choice_flag in (action.ASIS, action.APPLY):
@@ -894,7 +916,7 @@ def run_import(**kwargs):
     ImportConfig.
     """
     config = ImportConfig(**kwargs)
-    
+
     # Set up the pipeline.
     if config.query is None:
         stages = [read_tasks(config)]
@@ -914,7 +936,7 @@ def run_import(**kwargs):
         else:
             # When not autotagging, just display progress.
             stages += [show_progress(config)]
-    stages += [apply_choices(config)]
+    stages += [apply_choices(config), manipulate_files(config)]
     if config.art:
         stages += [fetch_art(config)]
     stages += [finalize(config)]

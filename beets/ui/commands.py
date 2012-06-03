@@ -8,14 +8,15 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """This module provides the default commands for beets' command-line
 interface.
 """
-from __future__ import with_statement # Python 2.5
+from __future__ import print_function
+
 import logging
 import sys
 import os
@@ -64,7 +65,7 @@ def _do_query(lib, query, album, also_items=True):
         raise ui.UserError('No matching albums found.')
     elif not album and not items:
         raise ui.UserError('No matching items found.')
-    
+
     return items, albums
 
 FLOAT_EPSILON = 0.01
@@ -88,10 +89,10 @@ def _showdiff(field, oldval, newval, color):
 fields_cmd = ui.Subcommand('fields',
     help='show fields available for queries and format strings')
 def fields_func(lib, config, opts, args):
-    print "Available item fields:"
-    print "  " + "\n  ".join([key for key in library.ITEM_KEYS])
-    print "\nAvailable album fields:"
-    print "  " + "\n  ".join([key for key in library.ALBUM_KEYS])
+    print("Available item fields:")
+    print("  " + "\n  ".join([key for key in library.ITEM_KEYS]))
+    print("\nAvailable album fields:")
+    print("  " + "\n  ".join([key for key in library.ALBUM_KEYS]))
 
 fields_cmd.func = fields_func
 default_commands.append(fields_cmd)
@@ -115,6 +116,7 @@ DEFAULT_COLOR                 = True
 DEFAULT_IGNORE                = [
     '.*', '*~',
 ]
+DEFAULT_PER_DISC_NUMBERING    = False
 
 VARIOUS_ARTISTS = u'Various Artists'
 
@@ -136,7 +138,8 @@ def dist_string(dist, color):
             out = ui.colorize('red', out)
     return out
 
-def show_change(cur_artist, cur_album, items, info, dist, color=True):
+def show_change(cur_artist, cur_album, items, info, dist, color=True,
+                per_disc_numbering=False):
     """Print out a representation of the changes that will be made if
     tags are changed from (cur_artist, cur_album, items) to info with
     distance dist.
@@ -203,7 +206,15 @@ def show_change(cur_artist, cur_album, items, info, dist, color=True):
 
         # Get displayable LHS and RHS values.
         cur_track = unicode(item.track)
-        new_track = unicode(i+1)
+        if per_disc_numbering:
+            if info.mediums > 1:
+                new_track = u'{0}-{1}'.format(track_info.medium,
+                                              track_info.medium_index)
+            else:
+                new_track = unicode(track_info.medium_index)
+        else:
+            new_track = unicode(i + 1)
+        tracks_differ = item.track not in (i + 1, track_info.medium_index)
         cur_title = item.title
         new_title = track_info.title
         if item.length and track_info.length:
@@ -212,34 +223,33 @@ def show_change(cur_artist, cur_album, items, info, dist, color=True):
             if color:
                 cur_length = ui.colorize('red', cur_length)
                 new_length = ui.colorize('red', new_length)
-        
+
         # Possibly colorize changes.
         if color:
             cur_title, new_title = ui.colordiff(cur_title, new_title)
-            if cur_track != new_track:
-                cur_track = ui.colorize('red', cur_track)
-                new_track = ui.colorize('red', new_track)
+            cur_track = ui.colorize('red', cur_track)
+            new_track = ui.colorize('red', new_track)
 
         # Show filename (non-colorized) when title is not set.
         if not item.title.strip():
             cur_title = displayable_path(os.path.basename(item.path))
-        
+
         if cur_title != new_title:
             lhs, rhs = cur_title, new_title
-            if cur_track != new_track:
+            if tracks_differ:
                 lhs += u' (%s)' % cur_track
                 rhs += u' (%s)' % new_track
             print_(u" * %s -> %s" % (lhs, rhs))
         else:
             line = u' * %s' % item.title
             display = False
-            if cur_track != new_track:
+            if tracks_differ:
                 display = True
                 line += u' (%s -> %s)' % (cur_track, new_track)
             if item.length and track_info.length and \
                     abs(item.length - track_info.length) > 2.0:
                 display = True
-                line += u' (%s -> %s)' % (cur_length, new_length)
+                line += u' (%s vs. %s)' % (cur_length, new_length)
             if display:
                 print_(line)
     for i, track_info in missing_tracks:
@@ -288,7 +298,7 @@ def _quiet_fall_back(config):
 
 def choose_candidate(candidates, singleton, rec, color, timid,
                      cur_artist=None, cur_album=None, item=None,
-                     itemcount=None):
+                     itemcount=None, per_disc_numbering=False):
     """Given a sorted list of candidates, ask the user for a selection
     of which candidate to use. Applies to both full albums and
     singletons  (tracks). For albums, the candidates are `(dist, items,
@@ -345,7 +355,7 @@ def choose_candidate(candidates, singleton, rec, color, timid,
         else:
             dist, items, info = candidates[0]
         bypass_candidates = True
-        
+
     while True:
         # Display and choose from candidates.
         if not bypass_candidates:
@@ -387,7 +397,7 @@ def choose_candidate(candidates, singleton, rec, color, timid,
                         line += u' %s' % warning
 
                     print_(line)
-                                            
+
             # Ask the user for a choice.
             if singleton:
                 opts = ('Skip', 'Use as-is', 'Enter search', 'enter Id',
@@ -416,20 +426,21 @@ def choose_candidate(candidates, singleton, rec, color, timid,
                 else:
                     dist, items, info = candidates[sel-1]
         bypass_candidates = False
-    
+
         # Show what we're about to do.
         if singleton:
             show_item_change(item, info, dist, color)
         else:
-            show_change(cur_artist, cur_album, items, info, dist, color)
-    
+            show_change(cur_artist, cur_album, items, info, dist, color,
+                        per_disc_numbering)
+
         # Exact match => tag automatically if we're not in timid mode.
         if rec == autotag.RECOMMEND_STRONG and not timid:
             if singleton:
                 return info
             else:
                 return info, items
-        
+
         # Ask for confirmation.
         if singleton:
             opts = ('Apply', 'More candidates', 'Skip', 'Use as-is',
@@ -507,10 +518,11 @@ def choose_match(task, config):
     candidates, rec = task.candidates, task.rec
     while True:
         # Ask for a choice from the user.
-        choice = choose_candidate(candidates, False, rec, config.color, 
+        choice = choose_candidate(candidates, False, rec, config.color,
                                   config.timid, task.cur_artist,
-                                  task.cur_album, itemcount=len(task.items))
-    
+                                  task.cur_album, itemcount=len(task.items),
+                                  per_disc_numbering=config.per_disc_numbering)
+
         # Choose which tags to use.
         if choice in (importer.action.SKIP, importer.action.ASIS,
                       importer.action.TRACKS):
@@ -616,7 +628,7 @@ def resolve_duplicate(task, config):
 
 def import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
                  color, delete, quiet, resume, quiet_fallback, singletons,
-                 timid, query, incremental, ignore):
+                 timid, query, incremental, ignore, per_disc_numbering):
     """Import the files in the given list of paths, tagging each leaf
     directory as an album. If copy, then the files are copied into
     the library folder. If write, then new metadata is written to the
@@ -652,7 +664,7 @@ def import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
         except IOError:
             raise ui.UserError(u"could not open log file for writing: %s" %
                                displayable_path(logpath))
-        print >>logfile, 'import started', time.asctime()
+        print('import started', time.asctime(), file=logfile)
     else:
         logfile = None
 
@@ -686,12 +698,13 @@ def import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
             incremental = incremental,
             ignore = ignore,
             resolve_duplicate_func = resolve_duplicate,
+            per_disc_numbering = per_disc_numbering,
         )
-    
+
     finally:
         # If we were logging, close the file.
         if logfile:
-            print >>logfile, ''
+            print('', file=logfile)
             logfile.close()
 
     # Emit event.
@@ -765,6 +778,8 @@ def import_func(lib, config, opts, args):
         ui.config_val(config, 'beets', 'import_incremental',
             DEFAULT_IMPORT_INCREMENTAL, bool)
     ignore = ui.config_val(config, 'beets', 'ignore', DEFAULT_IGNORE, list)
+    per_disc_numbering = ui.config_val(config, 'beets', 'per_disc_numbering',
+                                       DEFAULT_PER_DISC_NUMBERING, bool)
 
     # Resume has three options: yes, no, and "ask" (None).
     resume = opts.resume if opts.resume is not None else \
@@ -796,25 +811,21 @@ def import_func(lib, config, opts, args):
 
     import_files(lib, paths, copy, move, write, autot, logpath, art, threaded,
                  color, delete, quiet, resume, quiet_fallback, singletons,
-                 timid, query, incremental, ignore)
+                 timid, query, incremental, ignore, per_disc_numbering)
 import_cmd.func = import_func
 default_commands.append(import_cmd)
 
 
 # list: Query and show library contents.
 
+DEFAULT_LIST_FORMAT_ITEM = '$artist - $album - $title'
+DEFAULT_LIST_FORMAT_ALBUM = '$albumartist - $album'
+
 def list_items(lib, query, album, path, fmt):
     """Print out items in lib matching query. If album, then search for
     albums instead of single items. If path, print the matched objects'
     paths instead of human-readable information about them.
     """
-    if fmt is None:
-        # If no specific template is supplied, use a default.
-        if album:
-            fmt = u'$albumartist - $album'
-        else:
-            fmt = u'$artist - $album - $title'
-
     template = Template(fmt)
 
     if album:
@@ -838,7 +849,16 @@ list_cmd.parser.add_option('-p', '--path', action='store_true',
 list_cmd.parser.add_option('-f', '--format', action='store',
     help='print with custom format', default=None)
 def list_func(lib, config, opts, args):
-    list_items(lib, decargs(args), opts.album, opts.path, opts.format)
+    fmt = opts.format
+    if not fmt:
+        # If no format is specified, fall back to a default.
+        if opts.album:
+            fmt = ui.config_val(config, 'beets', 'list_format_album',
+                                DEFAULT_LIST_FORMAT_ALBUM)
+        else:
+            fmt = ui.config_val(config, 'beets', 'list_format_item',
+                                DEFAULT_LIST_FORMAT_ITEM)
+    list_items(lib, decargs(args), opts.album, opts.path, fmt)
 list_cmd.func = list_func
 default_commands.append(list_cmd)
 
@@ -1036,16 +1056,16 @@ default_commands.append(stats_cmd)
 # version: Show current beets version.
 
 def show_version(lib, config, opts, args):
-    print 'beets version %s' % beets.__version__
+    print_('beets version %s' % beets.__version__)
     # Show plugins.
     names = []
     for plugin in plugins.find_plugins():
         modname = plugin.__module__
         names.append(modname.split('.')[-1])
     if names:
-        print 'plugins:', ', '.join(names)
+        print_('plugins:', ', '.join(names))
     else:
-        print 'no plugins loaded'
+        print_('no plugins loaded')
 version_cmd = ui.Subcommand('version',
     help='output version information')
 version_cmd.func = show_version

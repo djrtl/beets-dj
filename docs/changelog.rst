@@ -1,8 +1,63 @@
 Changelog
 =========
 
-1.0b14 (in development)
+1.0b15 (in development)
 -----------------------
+
+* Tracks on multi-disc albums can now be numbered per-disc instead of per-album
+  via the :ref:`per_disc_numbering` config option.
+* The default output format for the ``beet list`` command is now configurable
+  via the :ref:`list_format_item` and :ref:`list_format_album` config options.
+  Thanks to Fabrice Laporte.
+* Errors when communicating with MusicBrainz now log an error message instead of
+  halting the importer.
+* Similarly, filesystem manipulation errors now print helpful error messages
+  instead of a messy traceback. They still interrupt beets, but they should now
+  be easier for users to understand. Tracebacks are still available in verbose
+  mode.
+* New metadata fields for `artist credits`_: ``artist_credit`` and
+  ``albumartist_credit`` can now contain release- and recording-specific
+  variations of the artist's name. See :ref:`itemfields`.
+* New plugin event: ``import_task_choice`` is called after an import task has an
+  action assigned.
+* New plugin event: ``library_opened`` is called when beets starts up and
+  opens the library database.
+* Fix a crash when moving files to a Samba share.
+* :doc:`/plugins/mpdupdate`: Fix TypeError crash (thanks to Philippe Mongeau).
+* When re-importing files with ``import_copy`` enabled, only files inside the
+  library directory are moved. Files outside the library directory are still
+  copied. This solves a problem (introduced in 1.0b14) where beets could crash
+  after adding files to the library but before finishing copying them; during
+  the next import, the (external) files would be moved instead of copied.
+* Artist sort names are now populated correctly for multi-artist tracks and
+  releases. (Previously, they only reflected the first artist.)
+* When previewing changes during import, differences in track duration are now
+  shown as "2:50 vs. 3:10" rather than separated with ``->`` like track numbers.
+  This should clarify that beets isn't doing anything to modify lengths.
+* Fix ID3 tag name for the catalog number field.
+* :doc:`/plugins/chroma`: Fix occasional crash at end of fingerprint submission
+  and give more context to "failed fingerprint generation" errors.
+* Interactive prompts are sent to stdout instead of stderr.
+* :doc:`/plugins/embedart`: Fix crash when audio files are unreadable.
+* Fix an assertion failure while importing with moving enabled when the file was
+  already at its destination.
+
+.. _artist credits: http://wiki.musicbrainz.org/Artist_Credit
+
+1.0b14 (May 12, 2012)
+---------------------
+
+The centerpiece of this beets release is the graceful handling of
+similarly-named albums. It's now possible to import two albums with the same
+artist and title and to keep them from conflicting in the filesystem. Many other
+awesome new features were contributed by the beets community, including regular
+expression queries, artist sort names, moving files on import. There are three
+new plugins: random song/album selection; MusicBrainz "collection" integration;
+and a plugin for interoperability with other music library systems.
+
+A million thanks to the (growing) beets community for making this a huge
+release.
+
 * The importer now gives you **choices when duplicates are detected**.
   Previously, when beets found an existing album or item in your library
   matching the metadata on a newly-imported one, it would just skip the new
@@ -55,11 +110,17 @@ Changelog
   even on Unix platforms (this causes less surprise when using Samba shares to
   store music). To customize your character substitutions, see :ref:`the replace
   config option <replace>`.
+* :doc:`/plugins/lastgenre`: Added a "fallback" option when no suitable genre
+  can be found (thanks to Fabrice Laporte).
+* :doc:`/plugins/rewrite`: Unicode rewriting rules are now allowed (thanks to
+  Nicolas Dietrich).
 * Filename collisions are now avoided when moving album art.
 * :doc:`/plugins/bpd`: Print messages to show when directory tree is being
   constructed.
 * :doc:`/plugins/bpd`: Use Gstreamer's ``playbin2`` element instead of the
   deprecated ``playbin``.
+* :doc:`/plugins/bpd`: Random and repeat modes are now supported (thanks to
+  Matteo Mecucci).
 * :doc:`/plugins/bpd`: Listings are now sorted (thanks once again to Matteo
   Mecucci).
 * Filenames are normalized with Unicode Normal Form D (NFD) on Mac OS X and NFC

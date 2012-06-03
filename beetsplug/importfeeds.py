@@ -8,23 +8,20 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """Write paths of imported files in various formats to ease later import in a
 music player.
 """
-
-from __future__ import with_statement
 import datetime
 import os
-import sys
 import re
 
 from beets import ui
 from beets.plugins import BeetsPlugin
-from beets.util import normpath, copy
+from beets.util import normpath
 
 M3U_DEFAULT_NAME = 'imported.m3u'
 
@@ -34,15 +31,14 @@ class ImportFeedsPlugin(BeetsPlugin):
 
         _feeds_formats = ui.config_val(config, 'importfeeds', 'feeds_formats',
                                        '').split()
-
-        _feeds_dir = ui.config_val(config, 'importfeeds', 'feeds_dir', None)
-        _feeds_dir = os.path.expanduser(_feeds_dir)
-
-        _m3u_name = ui.config_val(config, 'importfeeds', 'm3u_name', 
+        _m3u_name = ui.config_val(config, 'importfeeds', 'm3u_name',
                                  M3U_DEFAULT_NAME)
+        _feeds_dir = ui.config_val(config, 'importfeeds', 'feeds_dir', None)
         
-        if _feeds_dir and not os.path.exists(_feeds_dir):
-            os.makedirs(_feeds_dir)
+        if _feeds_dir: 
+            _feeds_dir = os.path.expanduser(_feeds_dir)
+            if not os.path.exists(_feeds_dir):
+                os.makedirs(_feeds_dir)
 
 def _get_feeds_dir(lib):
     """Given a Library object, return the path to the feeds directory to be
@@ -58,7 +54,7 @@ def _get_feeds_dir(lib):
     return dirpath
 
 def _build_m3u_filename(basename):
-    """Builds unique m3u filename by appending given basename to current 
+    """Builds unique m3u filename by appending given basename to current
     date."""
 
     basename = re.sub(r"[\s,'\"]", '_', basename)
@@ -76,29 +72,33 @@ def _write_m3u(m3u_path, items_paths):
 def _record_items(lib, basename, items):
     """Records relative paths to the given items for each feed format
     """
-    global _feeds_dir
-    if not _feeds_dir:
-        _feeds_dir = _get_feeds_dir(lib)
-
+    
     paths = []
-    for item in items:  
+    for item in items:
         paths.append(os.path.relpath(item.path, _feeds_dir))
 
     if 'm3u' in _feeds_formats:
-        m3u_path = os.path.join(_feeds_dir, _m3u_name) 
+        m3u_path = os.path.join(_feeds_dir, _m3u_name)
         _write_m3u(m3u_path, paths)
-   
+
     if 'm3u_multi' in _feeds_formats:
-        m3u_path = _build_m3u_filename(basename) 
+        m3u_path = _build_m3u_filename(basename)
         _write_m3u(m3u_path, paths)
 
     if 'link' in _feeds_formats:
         for path in paths:
             os.symlink(path, os.path.join(_feeds_dir, os.path.basename(path)))
 
+@ImportFeedsPlugin.listen('library_opened')
+def library_opened(lib):
+    global _feeds_dir
+    if not _feeds_dir:
+        _feeds_dir = _get_feeds_dir(lib)
+
 @ImportFeedsPlugin.listen('album_imported')
 def album_imported(lib, album, config):
     _record_items(lib, album.album, album.items())
+
 @ImportFeedsPlugin.listen('item_imported')
 def item_imported(lib, item, config):
     _record_items(lib, item.title, [item])

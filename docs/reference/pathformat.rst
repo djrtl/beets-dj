@@ -95,7 +95,7 @@ will expand to "[2008]" for one album and "[2010]" for the other. The
 function detects that you have two albums with the same artist and title but
 that they have different release years.
 
-For full flexibility, the ``%auniqe`` function takes two arguments, each of
+For full flexibility, the ``%aunique`` function takes two arguments, each of
 which are whitespace-separated lists of album field names: a set of
 *identifiers* and a set of *disambiguators*. Any group of albums with identical
 values for all the identifiers will be considered "duplicates". Then, the
@@ -158,10 +158,15 @@ Ordinary metadata:
 
 * title
 * artist
-* artist_sort
+* artist_sort: The "sort name" of the track artist (e.g., "Beatles, The" or
+  "White, Jack").
+* artist_credit: The track-specific `artist credit`_ name, which may be a
+  variation of the artist's "canonical" name.
 * album
-* albumartist
+* albumartist: The artist for the entire album, which may be different from the
+  artists for the individual tracks.
 * albumartist_sort
+* albumartist_credit
 * genre
 * composer
 * grouping
@@ -175,9 +180,9 @@ Ordinary metadata:
 * lyrics
 * comments
 * bpm
-* comp
-* albumtype (the MusicBrainz album type; the MusicBrainz wiki has a `list of
-  type names`_)
+* comp: Compilation flag.
+* albumtype: The MusicBrainz album type; the MusicBrainz wiki has a `list of
+  type names`_.
 * label
 * asin
 * catalognum
@@ -190,6 +195,7 @@ Ordinary metadata:
 * disctitle
 * encoder
 
+.. _artist credit: http://wiki.musicbrainz.org/Artist_Credit
 .. _list of type names: http://wiki.musicbrainz.org/XMLWebService#Release_Type_and_Status
 
 Audio information:

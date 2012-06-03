@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -25,6 +25,8 @@ library: unknown symbols are left intact.
 This is sort of like a tiny, horrible degeneration of a real templating
 engine like Jinja2 or Mustache.
 """
+from __future__ import print_function
+
 import re
 import ast
 import dis
@@ -174,7 +176,7 @@ class Call(object):
             arg_vals = [expr.evaluate(env) for expr in self.args]
             try:
                 out = env.functions[self.ident](*arg_vals)
-            except Exception, exc:
+            except Exception as exc:
                 # Function raised exception! Maybe inlining the name of
                 # the exception will help debug.
                 return u'<%s>' % unicode(exc)
@@ -409,7 +411,7 @@ class Parser(object):
             # No function name.
             self.parts.append(FUNC_DELIM)
             return
-        
+
         if self.pos >= len(self.string):
             # Identifier terminates string.
             self.parts.append(self.string[start_pos:self.pos])
@@ -447,7 +449,7 @@ class Parser(object):
 
             # Extract and advance past the parsed expression.
             expressions.append(Expression(subparser.parts))
-            self.pos += subparser.pos 
+            self.pos += subparser.pos
 
             if self.pos >= len(self.string) or \
                self.string[self.pos] == GROUP_CLOSE:
@@ -548,9 +550,9 @@ if __name__ == '__main__':
     interp_time = timeit.timeit('_tmpl.interpret(_vars, _funcs)',
                                 'from __main__ import _tmpl, _vars, _funcs',
                                 number=10000)
-    print interp_time
+    print(interp_time)
     comp_time = timeit.timeit('_tmpl.substitute(_vars, _funcs)',
                               'from __main__ import _tmpl, _vars, _funcs',
                               number=10000)
-    print comp_time
-    print 'Speedup:', interp_time / comp_time
+    print(comp_time)
+    print('Speedup:', interp_time / comp_time)

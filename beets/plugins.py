@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -162,7 +162,7 @@ def load_plugins(names=()):
         try:
             try:
                 __import__(modname, None, None)
-            except ImportError, exc:
+            except ImportError as exc:
                 # Again, this is hacky:
                 if exc.args[0].endswith(' ' + name):
                     log.warn('** plugin %s not found' % name)

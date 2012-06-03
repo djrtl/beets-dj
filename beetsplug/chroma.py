@@ -8,14 +8,13 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """Adds Chromaprint/Acoustid acoustic fingerprinting support to the
 autotagger. Requires the pyacoustid library.
 """
-from __future__ import with_statement
 from beets import plugins
 from beets import ui
 from beets import util
@@ -27,7 +26,7 @@ from collections import defaultdict
 API_KEY = '1vOwZtEn'
 SCORE_THRESH = 0.5
 TRACK_ID_WEIGHT = 10.0
-COMMON_REL_THRESH = 0.6 # How many tracks must have an album in common?
+COMMON_REL_THRESH = 0.6  # How many tracks must have an album in common?
 
 log = logging.getLogger('beets')
 
@@ -54,7 +53,7 @@ def acoustid_match(path):
     """
     try:
         duration, fp = acoustid.fingerprint_file(path)
-    except acoustid.FingerprintGenerationError, exc:
+    except acoustid.FingerprintGenerationError as exc:
         log.error('fingerprinting of %s failed: %s' %
                   (repr(path), str(exc)))
         return None
@@ -62,12 +61,12 @@ def acoustid_match(path):
     try:
         res = acoustid.lookup(API_KEY, fp, duration,
                               meta='recordings releases')
-    except acoustid.AcoustidError, exc:
-        log.debug('fingerprint matching %s failed: %s' % 
+    except acoustid.AcoustidError as exc:
+        log.debug('fingerprint matching %s failed: %s' %
                   (repr(path), str(exc)))
         return None
     log.debug('chroma: fingerprinted %s' % repr(path))
-    
+
     # Ensure the response is usable and parse it.
     if res['status'] != 'ok' or not res.get('results'):
         log.debug('chroma: no match found')
@@ -215,8 +214,10 @@ def submit_items(userkey, items, chunksize=64):
             ))
             try:
                 _, fp = acoustid.fingerprint_file(item.path)
-            except acoustid.FingerprintGenerationError, exc:
-                log.info('fingerprint generation failed')
+            except acoustid.FingerprintGenerationError as exc:
+                log.info(
+                    'fingerprint generation failed: {0}'.format(exc)
+                )
                 continue
 
         # Construct a submission dictionary for this item.
@@ -245,4 +246,5 @@ def submit_items(userkey, items, chunksize=64):
             submit_chunk()
 
     # Submit remaining data in a final chunk.
-    submit_chunk()
+    if data:
+        submit_chunk()

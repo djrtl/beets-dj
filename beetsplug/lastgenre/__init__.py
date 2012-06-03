@@ -8,7 +8,7 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
@@ -24,8 +24,6 @@ The included (default) genre list was produced by scraping Wikipedia.
 The scraper script used is available here:
 https://gist.github.com/1241307
 """
-from __future__ import with_statement
-
 import logging
 import pylast
 import os
@@ -53,7 +51,7 @@ def _tags_for(obj):
     """
     try:
         res = obj.get_top_tags()
-    except PYLAST_EXCEPTIONS, exc:
+    except PYLAST_EXCEPTIONS as exc:
         log.debug(u'last.fm error: %s' % unicode(exc))
         return []
 
@@ -67,13 +65,13 @@ def _tags_for(obj):
 
 def _tags_to_genre(tags):
     """Given a tag list, returns a genre. Returns the first tag that is
-    present in the genre whitelist or None if no tag is suitable. 
+    present in the genre whitelist or None if no tag is suitable.
     """
     if not tags:
         return None
     elif not options['whitelist']:
         return tags[0].title()
-    
+
     if options.get('c14n'):
         # Use the canonicalization tree.
         for tag in tags:
@@ -128,6 +126,8 @@ options = {
 }
 class LastGenrePlugin(plugins.BeetsPlugin):
     def configure(self, config):
+        global fallback_str
+
         wl_filename = ui.config_val(config, 'lastgenre', 'whitelist', None)
         if not wl_filename:
             # No filename specified. Instead, use the whitelist that's included
@@ -155,15 +155,22 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             from yaml import load
             genres_tree = load(open(c14n_filename, 'r'))
             branches = []
-            flatten_tree(genres_tree, [], branches) 
-            options['branches'] = branches 
+            flatten_tree(genres_tree, [], branches)
+            options['branches'] = branches
             options['c14n'] = True
-        
+
+        fallback_str = ui.config_val(config, 'lastgenre', 'fallback_str', None)
+
+
 @LastGenrePlugin.listen('album_imported')
 def album_imported(lib, album, config):
+    global fallback_str
     tags = _tags_for(LASTFM.get_album(album.albumartist, album.album))
     genre = _tags_to_genre(tags)
-    if genre:
+    if not genre and fallback_str != None :
+        genre = fallback_str
+        log.debug(u'no last.fm genre found: fallback to %s' % genre)
+    if genre is not None:
         log.debug(u'adding last.fm album genre: %s' % genre)
         album.genre = genre
 
@@ -173,9 +180,13 @@ def album_imported(lib, album, config):
 
 @LastGenrePlugin.listen('item_imported')
 def item_imported(lib, item, config):
+    global fallback_str
     tags = _tags_for(LASTFM.get_track(item.artist, item.title))
     genre = _tags_to_genre(tags)
-    if genre:
+    if not genre and fallback_str != None :
+        genre = fallback_str
+        log.debug(u'no last.fm genre found: fallback to %s' % genre)
+    if genre is not None:
         log.debug(u'adding last.fm item genre: %s' % genre)
         item.genre = genre
         lib.store(item)

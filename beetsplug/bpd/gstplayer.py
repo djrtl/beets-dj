@@ -8,13 +8,14 @@
 # distribute, sublicense, and/or sell copies of the Software, and to
 # permit persons to whom the Software is furnished to do so, subject to
 # the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
 """A wrapper for the GStreamer Python bindings that exposes a simple
 music player.
 """
+from __future__ import print_function
 
 import gst
 import sys
@@ -27,27 +28,27 @@ import urllib
 
 class GstPlayer(object):
     """A music player abstracting GStreamer's Playbin element.
-    
+
     Create a player object, then call run() to start a thread with a
     runloop. Then call play_file to play music. Use player.playing
     to check whether music is currently playing.
-    
+
     A basic play queue is also implemented (just a Python list,
     player.queue, whose last element is next to play). To use it,
     just call enqueue() and then play(). When a track finishes and
     another is available on the queue, it is played automatically.
     """
-    
+
     def __init__(self, finished_callback=None):
         """Initialize a player.
-        
+
         If a finished_callback is provided, it is called every time a
         track started with play_file finishes.
 
         Once the player has been created, call run() to begin the main
         runloop in a separate thread.
         """
-        
+
         # Set up the Gstreamer player. From the pygst tutorial:
         # http://pygstdocs.berlios.de/pygst-tutorial/playbin.html
         self.player = gst.element_factory_make("playbin2", "player")
@@ -56,7 +57,7 @@ class GstPlayer(object):
         bus = self.player.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self._handle_message)
-        
+
         # Set up our own stuff.
         self.playing = False
         self.finished_callback = finished_callback
@@ -68,7 +69,7 @@ class GstPlayer(object):
         # gst's get_state function returns a 3-tuple; we just want the
         # status flag in position 1.
         return self.player.get_state()[1]
-    
+
     def _handle_message(self, bus, message):
         """Callback for status updates from GStreamer."""
         if message.type == gst.MESSAGE_EOS:
@@ -83,7 +84,7 @@ class GstPlayer(object):
             # error
             self.player.set_state(gst.STATE_NULL)
             err, debug = message.parse_error()
-            print "Error: " + str(err)
+            print("Error: " + str(err))
             self.playing = False
 
     def _set_volume(self, volume):
@@ -115,7 +116,7 @@ class GstPlayer(object):
         if self._get_state() == gst.STATE_PAUSED:
             self.player.set_state(gst.STATE_PLAYING)
             self.playing = True
-    
+
     def pause(self):
         """Pause playback."""
         self.player.set_state(gst.STATE_PAUSED)
@@ -128,7 +129,7 @@ class GstPlayer(object):
 
     def run(self):
         """Start a new thread for the player.
-        
+
         Call this function before trying to play any music with
         play_file() or play().
         """
@@ -150,7 +151,7 @@ class GstPlayer(object):
             length = self.player.query_duration(fmt, None)[0]/(10**9)
             self.cached_time = (pos, length)
             return (pos, length)
-            
+
         except gst.QueryError:
             # Stream not ready. For small gaps of time, for instance
             # after seeking, the time values are unavailable. For this
@@ -166,14 +167,14 @@ class GstPlayer(object):
         if position > cur_len:
             self.stop()
             return
-        
+
         fmt = gst.Format(gst.FORMAT_TIME)
         ns = position * 10**9 # convert to nanoseconds
         self.player.seek_simple(fmt, gst.SEEK_FLAG_FLUSH, ns)
-        
+
         # save new cached time
         self.cached_time = (position, cur_len)
-        
+
     def block(self):
         """Block until playing finishes."""
         while self.playing:

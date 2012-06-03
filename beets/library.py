@@ -1,5 +1,5 @@
 # This file is part of beets.
-# Copyright 2011, Adrian Sampson.
+# Copyright 2012, Adrian Sampson.
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -12,7 +12,8 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-from __future__ import with_statement
+"""The core data store and collection logic for beets.
+"""
 import sqlite3
 import os
 import re
@@ -45,9 +46,11 @@ ITEM_FIELDS = [
     ('title',                'text', True, True),
     ('artist',               'text', True, True),
     ('artist_sort',          'text', True, True),
+    ('artist_credit',        'text', True, True),
     ('album',                'text', True, True),
     ('albumartist',          'text', True, True),
     ('albumartist_sort',     'text', True, True),
+    ('albumartist_credit',   'text', True, True),
     ('genre',                'text', True, True),
     ('composer',             'text', True, True),
     ('grouping',             'text', True, True),
@@ -101,29 +104,30 @@ ALBUM_FIELDS = [
     ('id',      'integer primary key', False),
     ('artpath', 'blob',                False),
 
-    ('albumartist',       'text', True),
-    ('albumartist_sort',  'text', True),
-    ('album',             'text', True),
-    ('genre',             'text', True),
-    ('year',              'int',  True),
-    ('month',             'int',  True),
-    ('day',               'int',  True),
-    ('tracktotal',        'int',  True),
-    ('disctotal',         'int',  True),
-    ('comp',              'bool', True),
-    ('mb_albumid',        'text', True),
-    ('mb_albumartistid',  'text', True),
-    ('albumtype',         'text', True),
-    ('label',             'text', True),
-    ('mb_releasegroupid', 'text', True),
-    ('asin',              'text', True),
-    ('catalognum',        'text', True),
-    ('script',            'text', True),
-    ('language',          'text', True),
-    ('country',           'text', True),
-    ('albumstatus',       'text', True),
-    ('media',             'text', True),
-    ('albumdisambig',     'text', True),
+    ('albumartist',        'text', True),
+    ('albumartist_sort',   'text', True),
+    ('albumartist_credit', 'text', True, True),
+    ('album',              'text', True),
+    ('genre',              'text', True),
+    ('year',               'int',  True),
+    ('month',              'int',  True),
+    ('day',                'int',  True),
+    ('tracktotal',         'int',  True),
+    ('disctotal',          'int',  True),
+    ('comp',               'bool', True),
+    ('mb_albumid',         'text', True),
+    ('mb_albumartistid',   'text', True),
+    ('albumtype',          'text', True),
+    ('label',              'text', True),
+    ('mb_releasegroupid',  'text', True),
+    ('asin',               'text', True),
+    ('catalognum',         'text', True),
+    ('script',             'text', True),
+    ('language',           'text', True),
+    ('country',            'text', True),
+    ('albumstatus',        'text', True),
+    ('media',              'text', True),
+    ('albumdisambig',      'text', True),
 ]
 ALBUM_KEYS = [f[0] for f in ALBUM_FIELDS]
 ALBUM_KEYS_ITEM = [f[0] for f in ALBUM_FIELDS if f[2]]
@@ -1190,7 +1194,7 @@ class Library(BaseLibrary):
                 album.remove(delete, False)
 
         if delete:
-            util.soft_remove(item.path)
+            util.remove(item.path)
             util.prune_dirs(os.path.dirname(item.path), self.directory)
 
         self._memotable = {}
@@ -1446,7 +1450,7 @@ class Album(BaseAlbum):
             # Delete art file.
             artpath = self.artpath
             if artpath:
-                util.soft_remove(artpath)
+                util.remove(artpath)
 
         with self._library.transaction() as tx:
             if with_items:
@@ -1571,7 +1575,7 @@ class Album(BaseAlbum):
 
         # Normal operation.
         if oldart == artdest:
-            util.soft_remove(oldart)
+            util.remove(oldart)
         artdest = util.unique_path(artdest)
         if copy:
             util.copy(path, artdest)
