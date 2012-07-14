@@ -64,7 +64,7 @@ all of these limitations.
 
 * Currently MP3, AAC, FLAC, Ogg Vorbis, Monkey's Audio, WavPack, and Musepack
   files are supported. (Do you use some other format?
-  `Let me know!`_
+  `Let me know!`_)
 
 .. _Let me know!: mailto:adrian@radbox.org
 
@@ -84,8 +84,6 @@ command-line options you should know:
 
 * ``beet import -C``: don't copy imported files to your music directory; leave
   them where they are
-
-* ``beet import -R``: don't fetch album art.
 
 * ``beet import -l LOGFILE``: write a message to ``LOGFILE`` every time you skip
   an album or choose to take its tags "as-is" (see below) or the album is
@@ -232,41 +230,28 @@ to getting it set up.
 
 .. _Chromaprint: http://acoustid.org/chromaprint
 
-Album Art
----------
+Album Art, Lyrics, Genres and Such
+----------------------------------
 
-By default, beets will search for cover art for every album you import, placing
-the cover art in a file named something like ``cover.jpg`` in the album's
-folder. (If you want to customize the name or disable album art fetching
-altogether, see :doc:`/reference/config` for the ``art_filename`` and
-``import_art`` settings.) Currently, beets looks for art on Amazon.com and on
-your local filesystem: if you have an image file called "cover," "front," "art,"
-"album," for "folder" alongside your music, beets will treat it as album art and
-skip searching any online databases.
-
-Beets will not, by default, embed album art into files' tags. To do that, take a
-look at the :doc:`/plugins/embedart`.
+Aside from the basic stuff, beets can optionally fetch more specialized
+metadata. As a rule, plugins are responsible for getting information that
+doesn't come directly from the MusicBrainz database. This includes :doc:`album
+cover art </plugins/fetchart>`, :doc:`song lyrics </plugins/lyrics>`, and
+:doc:`musical genres </plugins/lastgenre>`. Check out the :doc:`list of plugins
+</plugins/index>` to pick and choose the data you want.
 
 Missing Albums?
 ---------------
 
-If you're having trouble tagging a particular album with beets, you might want to check the following possibilities:
-
-* Is the album present in `the MusicBrainz database`_?  You can search on their
-  site to make sure it's cataloged there. If not, anyone can edit
-  MusicBrainz---so consider adding the data yourself.
-
-* Beets won't show you possibilities from MusicBrainz that have *fewer* tracks
-  than the current album. In other words, if you have extra tracks that aren't
-  included on the release, that candidate won't be displayed. (The tagger
-  should, on the other hand, show you candidates that have *more* tracks than
-  you do in the case that you're missing some of the album's songs. Beets will
-  warn you when any candidate is a partial match.)
+If you're having trouble tagging a particular album with beets, check to make
+sure the album is present in `the MusicBrainz database`_.  You can search on
+their site to make sure it's cataloged there. If not, anyone can edit
+MusicBrainz---so consider adding the data yourself.
 
 .. _the MusicBrainz database: http://musicbrainz.org/
 
-If neither of these situations apply and you're still having trouble tagging
-something, please `file a bug report`_.
+If you think beets is ignoring an album that's listed in MusicBrainz, please
+`file a bug report`_.
 
 .. _file a bug report: http://code.google.com/p/beets/issues/entry
 

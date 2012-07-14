@@ -21,6 +21,9 @@ import sys
 import logging
 import shlex
 import unicodedata
+import threading
+import contextlib
+from collections import defaultdict
 from unidecode import unidecode
 from beets.mediafile import MediaFile
 from beets import plugins
@@ -155,6 +158,22 @@ def _orelse(exp1, exp2):
     return ('(CASE {0} WHEN NULL THEN {1} '
                       'WHEN "" THEN {1} '
                       'ELSE {0} END)').format(exp1, exp2)
+
+# An SQLite function for regular expression matching.
+def _regexp(expr, val):
+    """Return a boolean indicating whether the regular expression `expr`
+    matches `val`.
+    """
+    if val is None or expr is None:
+        return False
+    if not isinstance(val, basestring):
+        val = unicode(val)
+    try:
+        res = re.search(expr, val)
+    except re.error:
+        # Invalid regular expression.
+        return False
+    return res is not None
 
 
 # Exceptions.
@@ -590,7 +609,14 @@ class CollectionQuery(Query):
         """Creates a query based on a single string. The string is split
         into query parts using shell-style syntax.
         """
-        return cls.from_strings(shlex.split(query))
+        # A bug in Python < 2.7.3 prevents correct shlex splitting of
+        # Unicode strings.
+        # http://bugs.python.org/issue6988
+        if isinstance(query, unicode):
+            pass
+            query = query.encode('utf8')
+        parts = [s.decode('utf8') for s in shlex.split(query)]
+        return cls.from_strings(parts)
 
 class AnySubstringQuery(CollectionQuery):
     """A query that matches a substring in any of a list of metadata
@@ -904,9 +930,15 @@ class Transaction(object):
 
     def __enter__(self):
         """Begin a transaction. This transaction may be created while
-        another is active.
+        another is active in a different thread.
         """
-        self.lib._tx_stack.append(self)
+        with self.lib._tx_stack() as stack:
+            first = not stack
+            stack.append(self)
+        if first:
+            # Beginning a "root" transaction, which corresponds to an
+            # SQLite transaction.
+            self.lib._db_lock.acquire()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -914,27 +946,31 @@ class Transaction(object):
         entered but not yet exited transaction. If it is the last active
         transaction, the database updates are committed.
         """
-        assert self.lib._tx_stack.pop() is self
-        if not self.lib._tx_stack:
-            self.lib.conn.commit()
+        with self.lib._tx_stack() as stack:
+            assert stack.pop() is self
+            empty = not stack
+        if empty:
+            # Ending a "root" transaction. End the SQLite transaction.
+            self.lib._connection().commit()
+            self.lib._db_lock.release()
 
     def query(self, statement, subvals=()):
         """Execute an SQL statement with substitution values and return
         a list of rows from the database.
         """
-        cursor = self.lib.conn.execute(statement, subvals)
+        cursor = self.lib._connection().execute(statement, subvals)
         return cursor.fetchall()
 
     def mutate(self, statement, subvals=()):
         """Execute an SQL statement with substitution values and return
         the row ID of the last affected row.
         """
-        cursor = self.lib.conn.execute(statement, subvals)
+        cursor = self.lib._connection().execute(statement, subvals)
         return cursor.lastrowid
 
     def script(self, statements):
         """Execute a string containing multiple SQL statements."""
-        self.lib.conn.executescript(statements)
+        self.lib._connection().executescript(statements)
 
 class Library(BaseLibrary):
     """A music library using an SQLite database as a metadata store."""
@@ -960,39 +996,24 @@ class Library(BaseLibrary):
         #sqlite3.enable_callback_tracebacks(1)
 
         self._memotable = {}  # Used for template substitution performance.
-        self._tx_stack = []
 
         self.timeout = timeout
-        self.conn = sqlite3.connect(self.path, timeout)
-        # This way we can access our SELECT results like dictionaries.
-        self.conn.row_factory = sqlite3.Row
+        self._connections = {}
+        self._tx_stacks = defaultdict(list)
+        # A lock to protect the _connections and _tx_stacks maps, which
+        # both map thread IDs to private resources.
+        self._shared_map_lock = threading.Lock()
+        # A lock to protect access to the database itself. SQLite does
+        # allow multiple threads to access the database at the same
+        # time, but many users were experiencing crashes related to this
+        # capability: where SQLite was compiled without HAVE_USLEEP, its
+        # backoff algorithm in the case of contention was causing
+        # whole-second sleeps (!) that would trigger its internal
+        # timeout. Using this lock ensures only one SQLite transaction
+        # is active at a time.
+        self._db_lock = threading.Lock()
 
-        # Add REGEXP function to SQLite queries.
-        def regexp(expr, val):
-            if val is None or expr is None:
-                return False
-            if not isinstance(val, basestring):
-                val = unicode(val)
-            try:
-                res = re.search(expr, val)
-            except re.error:
-                # Invalid regular expression.
-                return False
-            return res is not None
-        self.conn.create_function("REGEXP", 2, regexp)
-
-        def regexp(expr, item):
-            if item == None:
-                return False
-            try:
-                reg = re.compile(expr)
-                res = reg.search(item)
-                return res is not None
-            except:
-                return False
-
-        self.conn.create_function("REGEXP", 2, regexp)
-
+        # Set up database schema.
         self._make_table('items', item_fields)
         self._make_table('albums', album_fields)
 
@@ -1038,6 +1059,36 @@ class Library(BaseLibrary):
 
         with self.transaction() as tx:
             tx.script(setup_sql)
+
+    def _connection(self):
+        """Get a SQLite connection object to the underlying database.
+        One connection object is created per thread.
+        """
+        thread_id = threading.current_thread().ident
+        with self._shared_map_lock:
+            if thread_id in self._connections:
+                return self._connections[thread_id]
+            else:
+                # Make a new connection.
+                conn = sqlite3.connect(self.path, timeout=self.timeout)
+
+                # Access SELECT results like dictionaries.
+                conn.row_factory = sqlite3.Row
+                # Add the REGEXP function to SQLite queries.
+                conn.create_function("REGEXP", 2, _regexp)
+
+                self._connections[thread_id] = conn
+                return conn
+
+    @contextlib.contextmanager
+    def _tx_stack(self):
+        """A context manager providing access to the current thread's
+        transaction stack. The context manager synchronizes access to
+        the stack map. Transactions should never migrate across threads.
+        """
+        thread_id = threading.current_thread().ident
+        with self._shared_map_lock:
+            yield self._tx_stacks[thread_id]
 
     def transaction(self):
         """Get a transaction object for interacting with the database.

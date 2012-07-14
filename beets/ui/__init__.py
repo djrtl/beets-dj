@@ -110,6 +110,27 @@ def print_(*strings):
         txt = txt.encode(_encoding(), 'replace')
     print(txt)
 
+def input_(prompt=None):
+    """Like `raw_input`, but decodes the result to a Unicode string.
+    Raises a UserError if stdin is not available. The prompt is sent to
+    stdout rather than stderr. A printed between the prompt and the
+    input cursor.
+    """
+    # raw_input incorrectly sends prompts to stderr, not stdout, so we
+    # use print() explicitly to display prompts.
+    # http://bugs.python.org/issue1927
+    if prompt:
+        if isinstance(prompt, unicode):
+            prompt = prompt.encode(_encoding(), 'replace')
+        print(prompt, end=' ')
+
+    try:
+        resp = raw_input()
+    except EOFError:
+        raise UserError('stdin stream ended while input required')
+
+    return resp.decode(sys.stdin.encoding, 'ignore')
+
 def input_options(options, require=False, prompt=None, fallback_prompt=None,
                   numrange=None, default=None, color=False, max_width=72):
     """Prompts a user for input. The sequence of `options` defines the
@@ -241,11 +262,7 @@ def input_options(options, require=False, prompt=None, fallback_prompt=None,
             fallback_prompt += '%i-%i, ' % numrange
         fallback_prompt += ', '.join(display_letters) + ':'
 
-    # raw_input incorrectly sends prompts to stderr, not stdout, so we
-    # use print() explicitly to display prompts.
-    # http://bugs.python.org/issue1927
-    print(prompt, end=' ')
-    resp = raw_input()
+    resp = input_(prompt)
     while True:
         resp = resp.strip().lower()
 
@@ -273,8 +290,7 @@ def input_options(options, require=False, prompt=None, fallback_prompt=None,
                 return resp
 
         # Prompt for new input.
-        print(fallback_prompt, end=' ')
-        resp = raw_input()
+        resp = input_(fallback_prompt)
 
 def input_yn(prompt, require=False, color=False):
     """Prompts the user for a "yes" or "no" response. The default is
@@ -444,7 +460,8 @@ def _get_replacements(config):
     repl_string = config_val(config, 'beets', 'replace', None)
     if not repl_string:
         return
-    repl_string = repl_string.decode('utf8')
+    if not isinstance(repl_string, unicode):
+        repl_string = repl_string.decode('utf8')
 
     parts = repl_string.strip().split()
     if not parts:
@@ -687,7 +704,6 @@ def main(args=None, configfh=None):
     # Load requested plugins.
     plugnames = config_val(config, 'beets', 'plugins', '')
     plugins.load_plugins(plugnames.split())
-    plugins.load_listeners()
     plugins.send("pluginload")
     plugins.configure(config)
 

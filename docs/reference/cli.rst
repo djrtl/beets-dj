@@ -83,9 +83,6 @@ right now; this is something we need to work on. Read the
   metadata match. To disable this and have the importer as you every time,
   use the ``-t`` (for *timid*) option.
 
-* The importer automatically tries to download album art for each album it
-  finds. To disable or enable this, use the ``-r`` or ``-R`` options.
-
 * The importer typically works in a whole-album-at-a-time mode. If you
   instead want to import individual, non-album tracks, use the *singleton*
   mode by supplying the ``-s`` option.
@@ -213,7 +210,7 @@ stats
     beet stats [QUERY]
 
 Show some statistics on your entire library (if you don't provide a
-:doc:`query <query>` or the matched items (if you do).
+:doc:`query <query>`) or the matched items (if you do).
 
 fields
 ``````
