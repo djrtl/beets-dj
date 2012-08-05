@@ -141,7 +141,9 @@ def sorted_walk(path, ignore=()):
     # Get all the directories and files at this level.
     dirs = []
     files = []
-    for base in os.listdir(path):
+    for base in os.listdir(syspath(path)):
+        base = bytestring_path(base)
+
         # Skip ignored filenames.
         skip = False
         for pat in ignore:
@@ -166,7 +168,7 @@ def sorted_walk(path, ignore=()):
     # Recurse into directories.
     for base in dirs:
         cur = os.path.join(path, base)
-        # yield from _sorted_walk(cur)
+        # yield from sorted_walk(...)
         for res in sorted_walk(cur, ignore):
             yield res
 
@@ -250,6 +252,13 @@ def bytestring_path(path):
 
     # Try to encode with default encodings, but fall back to UTF8.
     encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
+    if encoding == 'mbcs':
+        # On Windows, a broken encoding known to Python as "MBCS" is
+        # used for the filesystem. However, we only use the Unicode API
+        # for Windows paths, so the encoding is actually immaterial so
+        # we can avoid dealing with this nastiness. We arbitrarily
+        # choose UTF-8.
+        encoding = 'utf8'
     try:
         return path.encode(encoding)
     except (UnicodeError, LookupError):
@@ -284,12 +293,16 @@ def syspath(path, pathmod=None):
         return path
 
     if not isinstance(path, unicode):
-        # Try to decode with default encodings, but fall back to UTF8.
-        encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
+        # Beets currently represents Windows paths internally with UTF-8
+        # arbitrarily. But earlier versions used MBCS because it is
+        # reported as the FS encoding by Windows. Try both.
         try:
-            path = path.decode(encoding, 'replace')
+            path = path.decode('utf8')
         except UnicodeError:
-            path = path.decode('utf8', 'replace')
+            # The encoding should always be MBCS, Windows' broken
+            # Unicode representation.
+            encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
+            path = path.decode(encoding, 'replace')
 
     # Add the magic prefix if it isn't already there
     if not path.startswith(u'\\\\?\\'):

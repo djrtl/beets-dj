@@ -247,7 +247,7 @@ class Item(object):
 
         if key in ITEM_KEYS:
             # If the value changed, mark the field as dirty.
-            if (not (key in self.record)) or (self.record[key] != value):
+            if (key not in self.record) or (self.record[key] != value):
                 self.record[key] = value
                 self.dirty[key] = True
                 if key in ITEM_KEYS_WRITABLE:
@@ -599,6 +599,10 @@ class CollectionQuery(Query):
             # Singleton query (not a real field).
             elif key.lower() == 'singleton':
                 subqueries.append(SingletonQuery(util.str2bool(pattern)))
+
+            # Unrecognized field.
+            else:
+                log.warn('no such field in query: {0}'.format(key))
 
         if not subqueries:  # No terms in query.
             subqueries = [TrueQuery()]
@@ -1140,10 +1144,9 @@ class Library(BaseLibrary):
             subpath = unicodedata.normalize('NFC', subpath)
         # Truncate components and remove forbidden characters.
         subpath = util.sanitize_path(subpath, pathmod, self.replacements)
-        # Encode for the filesystem, dropping unencodable characters.
-        if isinstance(subpath, unicode) and not fragment:
-            encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
-            subpath = subpath.encode(encoding, 'replace')
+        # Encode for the filesystem.
+        if not fragment:
+            subpath = bytestring_path(subpath)
 
         # Preserve extension.
         _, extension = pathmod.splitext(item.path)
