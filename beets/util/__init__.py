@@ -402,7 +402,6 @@ def convert_audio(path, dest, conversion_format):
 
     path = syspath(path)
     dest = syspath(dest)
-    _assert_not_exists(dest, None)
 
     out_file = open(dest, "wb")
 
