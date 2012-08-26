@@ -1302,7 +1302,7 @@ class Library(BaseLibrary):
         If the item is in an album, the album is given an opportunity to
         export its art. (This can be disabled by passing with_album=False.)
         """
-        dest = self.destination(item, in_album=False, basedir=basedir)
+        dest = self.destination(item, basedir=basedir)
 
         # Replace the extension in the destination file to the one
         # common for the specified format.
