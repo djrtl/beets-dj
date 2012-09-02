@@ -18,6 +18,8 @@ Changelog
 * Add the track mapping dictionary to the ``album_distance`` plugin function.
 * Fix an assertion failure when the MusicBrainz main database and search server
   disagree.
+* Fix a bug that caused the :doc:`/plugins/lastgenre` and other plugins not to
+  modify files' tags even when they successfully change the database.
 
 1.0b15 (July 26, 2012)
 ----------------------
