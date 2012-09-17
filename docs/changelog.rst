@@ -21,6 +21,8 @@ Changelog
   disagree.
 * Fix a bug that caused the :doc:`/plugins/lastgenre` and other plugins not to
   modify files' tags even when they successfully change the database.
+* Fix a VFS bug leading to a crash in the :doc:`/plugins/bpd` when files had
+  non-ASCII extensions.
 
 1.0b15 (July 26, 2012)
 ----------------------
