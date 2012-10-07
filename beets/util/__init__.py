@@ -93,7 +93,7 @@ class FilesystemError(HumanReadableException):
             clause = 'while {0} {1} to {2}'.format(
                 self._gerund(), repr(self.paths[0]), repr(self.paths[1])
             )
-        elif self.verb in ('delete',):
+        elif self.verb in ('delete', 'write'):
             clause = 'while {0} {1}'.format(
                 self._gerund(), repr(self.paths[0])
             )
@@ -518,6 +518,15 @@ def str2bool(value):
         return True
     else:
         return False
+
+def as_string(value):
+    """Convert a value to a Unicode object for matching with a query.
+    None becomes the empty string.
+    """
+    if value is None:
+        return u''
+    else:
+        return unicode(value)
 
 def levenshtein(s1, s2):
     """A nice DP edit distance implementation from Wikibooks:

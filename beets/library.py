@@ -23,6 +23,7 @@ import shlex
 import unicodedata
 import threading
 import contextlib
+import traceback
 from collections import defaultdict
 from unidecode import unidecode
 from beets.mediafile import MediaFile
@@ -164,10 +165,9 @@ def _regexp(expr, val):
     """Return a boolean indicating whether the regular expression `expr`
     matches `val`.
     """
-    if val is None or expr is None:
+    if expr is None:
         return False
-    if not isinstance(val, basestring):
-        val = unicode(val)
+    val = util.as_string(val)
     try:
         res = re.search(expr, val)
     except re.error:
@@ -279,11 +279,17 @@ class Item(object):
     def write(self):
         """Writes the item's metadata to the associated file.
         """
+        plugins.send('write', item=self)
+
         f = MediaFile(syspath(self.path))
-        plugins.send('write', item=self, mf=f)
         for key in ITEM_KEYS_WRITABLE:
             setattr(f, key, getattr(self, key))
-        f.save()
+
+        try:
+            f.save()
+        except (OSError, IOError) as exc:
+            raise util.FilesystemError(exc, 'write', (self.path,),
+                                       traceback.format_exc())
 
         # The file has a new mtime.
         self.mtime = self.current_mtime()
@@ -357,6 +363,10 @@ class Item(object):
                 value = util.sanitize_for_path(value, pathmod, key)
             mapping[key] = value
 
+        # Additional fields in non-sanitized case.
+        if not sanitize:
+            mapping['path'] = self.path
+
         # Use the album artist if the track artist is not set and
         # vice-versa.
         if not mapping['artist']:
@@ -419,8 +429,6 @@ class FieldQuery(Query):
     pattern.
     """
     def __init__(self, field, pattern):
-        if field not in ITEM_KEYS:
-            raise InvalidFieldError(field + ' is not an item key')
         self.field = field
         self.pattern = pattern
 
@@ -445,7 +453,7 @@ class SubstringQuery(FieldQuery):
         return clause, subvals
 
     def match(self, item):
-        value = getattr(item, self.field) or ''
+        value = util.as_string(getattr(item, self.field))
         return self.pattern.lower() in value.lower()
 
 class RegexpQuery(FieldQuery):
@@ -460,7 +468,7 @@ class RegexpQuery(FieldQuery):
         return clause, subvals
 
     def match(self, item):
-        value = getattr(item, self.field) or ''
+        value = util.as_string(getattr(item, self.field))
         return self.regexp.search(value) is not None
 
 class BooleanQuery(MatchQuery):
@@ -617,10 +625,10 @@ class CollectionQuery(Query):
         # Unicode strings.
         # http://bugs.python.org/issue6988
         if isinstance(query, unicode):
-            pass
             query = query.encode('utf8')
         parts = [s.decode('utf8') for s in shlex.split(query)]
-        return cls.from_strings(parts)
+        return cls.from_strings(parts, default_fields=default_fields,
+                                all_keys=all_keys)
 
 class AnySubstringQuery(CollectionQuery):
     """A query that matches a substring in any of a list of metadata
@@ -719,17 +727,17 @@ class PathQuery(Query):
     """A query that matches all items under a given path."""
     def __init__(self, path):
         # Match the path as a single file.
-        self.file_path = normpath(path)
+        self.file_path = bytestring_path(normpath(path))
         # As a directory (prefix).
-        self.dir_path = os.path.join(self.file_path, '')
+        self.dir_path = bytestring_path(os.path.join(self.file_path, ''))
 
     def match(self, item):
         return (item.path == self.file_path) or \
                item.path.startswith(self.dir_path)
 
     def clause(self):
-        dir_pat = self.dir_path + '%'
-        file_blob = buffer(bytestring_path(self.file_path))
+        dir_pat = buffer(self.dir_path + '%')
+        file_blob = buffer(self.file_path)
         return '(path = ?) || (path LIKE ?)', (file_blob, dir_pat)
 
 class ResultIterator(object):
@@ -1150,6 +1158,9 @@ class Library(BaseLibrary):
 
         # Preserve extension.
         _, extension = pathmod.splitext(item.path)
+        if fragment:
+            # Outputting Unicode.
+            extension = extension.decode('utf8', 'ignore')
         subpath += extension.lower()
 
         if fragment:
