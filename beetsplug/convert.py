@@ -139,7 +139,7 @@ def convert_item(lib, dest_dir):
 
         artpath = lib.get_album(item).artpath
         if artpath and conf['embed']:
-            _embed(artpath, [dest_item])
+            _embed(artpath, [item])
 
 
 def convert_func(lib, config, opts, args):
