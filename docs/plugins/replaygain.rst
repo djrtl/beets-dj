@@ -9,19 +9,24 @@ playback levels.
 Installation
 ------------
 
-This plugin use a command line tool to compute the ReplayGain information:
+This plugin uses the `mp3gain`_ command-line tool or the `aacgain`_ fork
+thereof. To get started, install this tool:
 
 * On Mac OS X, you can use `Homebrew`_. Type ``brew install aacgain``.
-* On Windows, install the original `mp3gain`_.
+* On Linux, `mp3gain`_ is probably in your repositories. On Debian or Ubuntu,
+  for example, you can run ``apt-get install mp3gain``.
+* On Windows, download and install the original `mp3gain`_.
 
 .. _mp3gain: http://mp3gain.sourceforge.net/download.php
+.. _aacgain: http://aacgain.altosdesign.com
 .. _Homebrew: http://mxcl.github.com/homebrew/
 
-To enable the plugin, you’ll need to edit your .beetsconfig file and add the 
-line ``plugins: replaygain``.
+Then enable the ``replaygain`` plugin (see :doc:`/reference/config`). If beets
+doesn't automatically find the ``mp3gain`` or ``aacgain`` executable, you can
+configure the path explicitly like so::
 
-    [beets]
-    plugins = replaygain
+    [replaygain]
+    command: /Applications/MacMP3Gain.app/Contents/Resources/aacgain
 
 In case beets doesn't find the path to the ReplayGain binary, you can write it
 explicitely in the plugin options like so :
@@ -43,23 +48,38 @@ for the plugin in your :doc:`/reference/config`, like so::
     [replaygain]
     overwrite: yes
 
-The target level can be modified to any target dB with the ``targetlevel``option
-(default: 89 dB).
+The target level can be modified to any target dB with the ``targetlevel``
+option (default: 89 dB).
 
-ReplayGain allows to make consistent the loudness of a whole album while allowing
- the dynamics from song to song on the album to remain intact. This is called
- 'Album Gain' (especially important for classical music albums with large loudness
- range). 
-'Track Gain' (each song considered independently) mode is used by default but can 
-be changed with ``albumgain`` switch::
+When analyzing albums, this plugin calculates both an "album gain" alongside
+individual track gains. Album gain normalizes an entire album's loudness while
+allowing the dynamics from song to song on the album to remain intact. This is
+especially important for classical music albums with large loudness ranges.
+Players can choose which gain (track or album) to honor.
+
+If you use a player that does not support ReplayGain specifications, you can
+force the volume normalization by applying the gain to the file via the
+``apply`` option. This is a lossless and reversible operation with no
+transcoding involved. The use of ReplayGain can cause clipping if the average
+volume of a song is below the target level. By default, a "prevent clipping"
+option named ``noclip`` is enabled to reduce the amount of ReplayGain adjustment
+to whatever amount would keep clipping from occurring.
+
+Manual Analysis
+---------------
+
+By default, the plugin will analyze all items an albums as they are implemented.
+However, you can also manually analyze files that are already in your library.
+Use the ``beet replaygain`` command::
+
+    $ beet replaygain [-a] [QUERY]
+
+The ``-a`` flag analyzes whole albums instead of individual tracks. Provide a
+query (see :doc:`/reference/query`) to indicate which items or albums to
+analyze.
+
+ReplayGain analysis is not fast, so you may want to disable it during import.
+Use the ``automatic`` config option to control this::
 
     [replaygain]
-    albumgain: yes
-
-If you use a player that does not support ReplayGain specifications, you may want
-to force the volume normalization by applying the gain to the file via the ``apply`` 
-option. This is a lossless and revertable operation with no decoding/re-encoding involved.
-The use of ReplayGain can cause clipping if the average volume of a song is below
-the target level. By default a "prevent clipping" feature named ``noclip`` is
-enabled to reduce the amount of ReplayGain adjustment to whatever amount would
-keep clipping from occurring.
+    automatic: no
